@@ -37,6 +37,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     }
 
     strcpy(newFile->name, filename);
+    strcpy(newFile->path, parent->path);
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
@@ -63,14 +64,22 @@ void createDir(Directory *parent, const char *dirname)
     newDir->subdir_head = newDir->subdir_tail = NULL;
 
     // Inserting the new node at the end of the parent linked list
-    if(parent->subdir_count == 0){
-        parent->subdir_head = parent->subdir_tail = newDir;
-        parent->subdir_count++;
-        return;
+    if(parent == NULL){
+        strcpy(newDir->path, "/");
     }
+    else{
+        strcpy(newDir->path, parent->path);
+        strcat(newDir->path, dirname);
+        strcat(newDir->path, "/");
 
-    parent->subdir_tail->next_subDir = newDir;
-    parent->subdir_count++;
+        if(parent->subdir_count == 0){
+            parent->subdir_head = parent->subdir_tail = newDir;
+            parent->subdir_count++;
+            return;
+        }
+        parent->subdir_tail->next_subDir = newDir;
+        parent->subdir_count++;
+    }   
 }
 
 

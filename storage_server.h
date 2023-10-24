@@ -17,6 +17,7 @@
 
 typedef struct file_struct{
     char name[MAX_FILENAME_LENGTH]; // filename
+    char path[MAX_PATH_LENGTH];     // filepath (wrt root directroy
     int size;                       // filesize in bytes
     int ownerID;                    // owner 
     int is_locked;                  // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
@@ -27,6 +28,7 @@ typedef struct file_struct{
 
 typedef struct dir_struct{
     char name[MAX_DIRNAME_LENGTH];    // directory name
+    char path[MAX_PATH_LENGTH];       // directory path (wrt root directory)
     int file_count;                   // no. of files inside the directory (not subdirectories)
     File* file_head;                  // head of singly linked list of files
     FILE* file_tail;                  // tail of singly linked list of files
@@ -39,12 +41,12 @@ typedef struct dir_struct{
 } Directory;
 
 struct StorageServer {
-    char ip_address[16];
-    int nm_port;
-    int client_port;
+    char IP_Address[16];        // IP Address of the Storage Server
+    int NS_Port;                // Port for communication with Name serve
+    int Client_Port;            // Port for communication with Client
     char accessible_paths[MAX_ACCESSIBLE_PATHS][MAX_PATH_LENGTH];
-    Directory root_directory;
-    pthread_mutex_t lock;
+    Directory* root_directory;  // Root directory for the storage server
+    pthread_mutex_t lock;       // Lock mechanism (needs to be modified)
 };
 
 // Functions for files
@@ -53,6 +55,9 @@ void uploadFile(char* filename, int clientSocketID);
 void getFile(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileAdditionalInfo(char* filename, int clientSocketID);
+int lockFile(File *file, int lock_type);
+void write_releaseLock(File *file, int clientID);
+void read_releaseLock(File *file);
 
 // Functions for directory
 void createDir(Directory* parent, const char* dirname);
