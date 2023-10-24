@@ -38,6 +38,8 @@ void createFile(Directory *parent, const char *filename, int ownerID)
 
     strcpy(newFile->name, filename);
     strcpy(newFile->path, parent->path);
+    strcat(newFile->path, filename);
+    
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
