@@ -18,9 +18,10 @@
 typedef struct file_struct{
     char name[MAX_FILENAME_LENGTH]; // filename
     int size;                       // filesize in bytes
-    int ownerID;                 // owner 
+    int ownerID;                    // owner 
     int is_locked;                  // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
     int write_client_id;            // clientID of the client modifting it
+    int file_reader_count;          // no. of clients reading this file
     struct file_struct* nextfile;   // pointer to the next filenode in the directory
 } File;
 
@@ -58,6 +59,6 @@ void createDir(Directory* parent, const char* dirname);
 void uploadDir(char* directoryname, int clientSocketID);
 void deleteDir(char* directoryname, int clientSocketID);
 void getDir(char* directoryname, int clientSocketID);
-void listFilesDir(char* directoryname, int clientSocketID);
+void listDirectoryContents(Directory* dir);
 
 #endif

@@ -40,6 +40,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
+    newFile->file_reader_count = 0;
     newFile->write_client_id = NULL;
     newFile->is_locked = 0;
 }
@@ -72,6 +73,20 @@ void createDir(Directory *parent, const char *dirname)
     parent->subdir_count++;
 }
 
+
+/* Function to list all the directory contents*/
+void listDirectoryContents(Directory* parent)
+{
+    // Printing all the subdirectories
+    for(Directory* dir = parent->subdir_head; dir!=NULL; dir = dir->next_subDir){
+        printf("%s\n", dir->name);
+    }
+
+    // Printing all the files
+    for(File* file = parent->file_head; file!=NULL; file = file->nextfile){
+        printf("%s \t (%d bytes \t ownerID: %d)\n", file->name, file->size, file->ownerID);
+    }
+}
 
 /* Function to send a file getFile()*/
 void getFile(char* filename, int clientSocketID){
