@@ -27,9 +27,55 @@ void closeSocket(){
 }
 
 
+/* Function to create a file - createFile() */
+void createFile(Directory *parent, const char *filename, int ownerID)
+{
+    File* newFile = (File*)malloc(sizeof(File));
+    if(newFile == NULL){
+        printf("createFile: malloc failed\n");
+        return;
+    }
+
+    strcpy(newFile->name, filename);
+    newFile->size = 0;
+    newFile->nextfile = NULL;
+    newFile->ownerID = ownerID;
+    newFile->write_client_id = NULL;
+    newFile->is_locked = 0;
+}
+
+
+/* Function to create a Directory - createDir() */
+void createDir(Directory *parent, const char *dirname)
+{
+    Directory* newDir = (Directory*)malloc(sizeof(Directory));
+    if(newDir == NULL){
+        printf("createDir: malloc failed\n");
+        return;
+    }
+
+    strcpy(newDir->name, dirname);
+    newDir->file_count = 0;
+    newDir->subdir_count = 0;
+    newDir->next_subDir = NULL;
+    newDir->file_head = newDir->file_tail = NULL;
+    newDir->subdir_head = newDir->subdir_tail = NULL;
+
+    // Inserting the new node at the end of the parent linked list
+    if(parent->subdir_count == 0){
+        parent->subdir_head = parent->subdir_tail = newDir;
+        parent->subdir_count++;
+        return;
+    }
+
+    parent->subdir_tail->next_subDir = newDir;
+    parent->subdir_count++;
+}
+
+
 /* Function to send a file getFile()*/
 void getFile(char* filename, int clientSocketID){
-    
+
 }
 
 int main(int argc, char* argv[])
