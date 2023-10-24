@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include "storage_server.h"
 
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -18,10 +19,17 @@ void handle_signal(int signum) {
     exit(signum);
 }
 
+
 /* Function to close the socket*/
 void closeSocket(){
     close(socketID);
     exit(1);
+}
+
+
+/* Function to send a file getFile()*/
+void getFile(char* filename, int clientSocketID){
+    
 }
 
 int main(int argc, char* argv[])
@@ -38,15 +46,15 @@ int main(int argc, char* argv[])
 
     // Creating a socket
     int PORT = atoi(argv[1]);
-    socketID = socket(AF_INET, SOCK_STREAM, 0);
-    if(socketID < 0){
+    if((socketID = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         perror("Error: opening socket\n");
         exit(1);
     }
 
     // Creating a server and client address structure
-    struct sockaddr_in serverAddress, clientAddress;
+    struct sockaddr_in serverAddress, nameServerAddress, clientAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
+    memset(&nameServerAddress, 0, sizeof(nameServerAddress));
     memset(&clientAddress, 0, sizeof(clientAddress));
 
     serverAddress.sin_family = AF_INET;
@@ -59,6 +67,9 @@ int main(int argc, char* argv[])
         exit(1);
     }
     printf("Storage Server has successfully started on port %d", PORT);
+
+    // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
+
 
     // Closing the socket
     if(close(socketID) < 0){
