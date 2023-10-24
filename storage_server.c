@@ -40,7 +40,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
-    newFile->file_reader_count = 0;
+    newFile->reader_count = 0;
     newFile->write_client_id = NULL;
     newFile->is_locked = 0;
 }
@@ -85,6 +85,34 @@ void listDirectoryContents(Directory* parent)
     // Printing all the files
     for(File* file = parent->file_head; file!=NULL; file = file->nextfile){
         printf("%s \t (%d bytes \t ownerID: %d)\n", file->name, file->size, file->ownerID);
+    }
+}
+
+/* Lock a File */
+int lockFile(File *file, int lock_type) 
+{
+    if (file->is_locked == 0) {
+        file->is_locked = lock_type;
+        return 0;
+    }
+
+    else if(lock_type==1 && file->is_locked==1){
+        file->reader_count++;
+        return 0;
+    }
+    return 1;
+}
+
+/* Release lock on a file */
+void write_releaseLock(File *file, int clientID) {
+    if(file->is_locked == 2 && file->write_client_id == clientID){
+        file->is_locked = 0;
+    }
+}
+
+void read_releaseLock(File *file) {
+    if(--file->reader_count == 0 && file->is_locked == 1) {
+        file->is_locked = 0;
     }
 }
 

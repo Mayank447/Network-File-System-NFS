@@ -21,7 +21,7 @@ typedef struct file_struct{
     int ownerID;                    // owner 
     int is_locked;                  // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
     int write_client_id;            // clientID of the client modifting it
-    int file_reader_count;          // no. of clients reading this file
+    int reader_count;               // no. of clients reading this file
     struct file_struct* nextfile;   // pointer to the next filenode in the directory
 } File;
 
