@@ -1,15 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "name_server.h"
-
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <pthread.h>
-#include <semaphore.h>
 
 int socketID; //socketID for the Name Server
 
