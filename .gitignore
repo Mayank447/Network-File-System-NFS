@@ -2,3 +2,7 @@
 *.o
 *.txt
 .vscode*
+
+client
+name_server
+storage_server
