@@ -19,7 +19,6 @@ void handle_signal(int signum) {
     exit(signum);
 }
 
-
 /* Function to close the socket*/
 void closeSocket(){
     close(socketID);
@@ -39,7 +38,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     strcpy(newFile->name, filename);
     strcpy(newFile->path, parent->path);
     strcat(newFile->path, filename);
-    
+
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
@@ -127,10 +126,16 @@ void read_releaseLock(File *file) {
     }
 }
 
-/* Function to send a file getFile()*/
+/* Function to send a file to the client - getFile()*/
 void getFile(char* filename, int clientSocketID){
+    
+}
+
+/* Function to upload a file - */
+void uploadFile(char* filename, int clientSocketID){
 
 }
+
 
 int main(int argc, char* argv[])
 {   
@@ -152,10 +157,10 @@ int main(int argc, char* argv[])
     }
 
     // Creating a server and client address structure
-    struct sockaddr_in serverAddress, nameServerAddress, clientAddress;
+    struct sockaddr_in serverAddress, nameServerAddress;
+    int addrlen = sizeof(serverAddress);
     memset(&serverAddress, 0, sizeof(serverAddress));
     memset(&nameServerAddress, 0, sizeof(nameServerAddress));
-    memset(&clientAddress, 0, sizeof(clientAddress));
 
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -170,6 +175,30 @@ int main(int argc, char* argv[])
 
     // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
 
+    // Listening for clients
+    if(listen(socketID, MAX_CLIENT_CONNECTIONS)<0){
+        perror("Listen failed");
+        exit(EXIT_FAILURE);
+    }
+
+
+    // Initializing empty sockets and clientAddresses for clients
+    int clientSocket[MAX_CLIENT_CONNECTIONS];
+    struct sockaddr_in clientAddress[MAX_CLIENT_CONNECTIONS];
+    int client_socket_count = 0;
+    
+    for(int j=0; j<MAX_CLIENT_CONNECTIONS; j++)
+        memset(&clientAddress[j], 0, sizeof(clientAddress[j]));
+
+
+    // Accepting connections from clients
+    while(1){
+        if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count++], (socklen_t*)&addrlen)) < 0) {
+            perror("Accept failed");
+            exit(EXIT_FAILURE);
+        }
+
+    }
 
     // Closing the socket
     if(close(socketID) < 0){

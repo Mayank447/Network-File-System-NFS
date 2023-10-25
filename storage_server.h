@@ -1,6 +1,8 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#define MAX_CLIENT_CONNECTIONS 5
+
 // Some Macros
 #define MAX_FILENAME_LENGTH 255
 #define MAX_DIRNAME_LENGTH 255
