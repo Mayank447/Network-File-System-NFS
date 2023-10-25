@@ -305,7 +305,10 @@ int main(int argc, char* argv[])
         else{
             client_socket_count++;
             printf("New connection..\n");
+            sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
         }
+
+
 
     }
 

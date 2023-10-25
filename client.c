@@ -32,16 +32,29 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    FILE* file = fopen("sample_file.txt", "r");
+    FILE* file = fopen("sample_file.txt", "a");
     if (file == NULL) {
         perror("File open failed");
         exit(EXIT_FAILURE);
     }
 
+    /* Receiving data from the server*/
+    int bytes_received;
+    while((bytes_received = recv(client_socket, buffer, sizeof(buffer), 0)) > 0) {
+        printf("%s\n", buffer);
+        if(fwrite(buffer,bytes_received, sizeof(buffer), file) < 0){
+            perror("Error writing to file");
+            fclose(file);
+            break;
+        }
+    }
+
+    /* Sending data to server
     int bytes_read;
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
         send(client_socket, buffer, bytes_read, 0);
     }
+    */
 
     fclose(file);
     close(client_socket);
