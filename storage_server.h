@@ -53,8 +53,8 @@ struct StorageServer {
 
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
-void uploadFile(char* filename, int clientSocketID);
-void getFile(char* filename, int clientSocketID);
+void uploadFile_client_to_server(char* filename, int clientSocketID);
+void getFile_server_to_client(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileAdditionalInfo(char* filename, int clientSocketID);
 int lockFile(File *file, int lock_type);
