@@ -1,15 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "storage_server.h"
-
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <pthread.h>
-#include <semaphore.h>
 
 int socketID; //socketID for the server
 
@@ -178,6 +167,70 @@ void uploadFile_client_to_server(char* filename, int clientSocketID){
     fclose(file);
 }
 
+// /*Function to copy files copyFile()*/                -------------------------- implement later
+// int copyFile(const char *sourcePath, const char *destinationPath) {
+//     FILE *sourceFile, *destinationFile;
+//     char ch;
+
+//     sourceFile = fopen(sourcePath, "rb");
+//     if (sourceFile == NULL) {
+//         perror("Unable to open source file");
+//         return 1;
+//     }
+
+//     destinationFile = fopen(destinationPath, "wb");
+//     if (destinationFile == NULL) {
+//         perror("Unable to create or open destination file");
+//         fclose(sourceFile);
+//         return 1;
+//     }
+
+//     while ((ch = fgetc(sourceFile)) != EOF) {
+//         fputc(ch, destinationFile);
+//     }
+
+//     fclose(sourceFile);
+//     fclose(destinationFile);
+
+//     return 0;
+// }
+
+// /*Function to copy directories copyDirectory()*/     -------------------------- implement later
+// void copyDirectory(const char *sourceDir, const char *destinationDir) {
+//     struct dirent *entry;
+//     struct stat statInfo;
+//     char sourcePath[MAX_PATH_LENGTH], destinationPath[MAX_PATH_LENGTH];
+
+//     // Open source directory
+//     DIR *dir = opendir(sourceDir);
+
+//     if (dir == NULL) {
+//         perror("Unable to open source directory");
+//         return;
+//     }
+
+//     // Create destination directory
+//     mkdir(destinationDir, 0777);
+
+//     while ((entry = readdir(dir))) {
+//         if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+//             sprintf(sourcePath, "%s/%s", sourceDir, entry->d_name);
+//             sprintf(destinationPath, "%s/%s", destinationDir, entry->d_name);
+
+//             if (stat(sourcePath, &statInfo) == 0) {
+//                 if (S_ISDIR(statInfo.st_mode)) {
+//                     // Recursively copy subdirectories
+//                     copyDirectory(sourcePath, destinationPath);
+//                 } else {
+//                     // Copy files
+//                     copyFile(sourcePath, destinationPath);
+//                 }
+//             }
+//         }
+//     }
+
+//     closedir(dir);
+// }
 
 int main(int argc, char* argv[])
 {   
