@@ -26,7 +26,6 @@ void closeSocket(){
     exit(1);
 }
 
-
 /* Function to create a file - createFile() */
 void createFile(Directory *parent, const char *filename, int ownerID)
 {
@@ -129,7 +128,31 @@ void read_releaseLock(File *file) {
 
 /* Function to send a file getFile()*/
 void getFile(char* filename, int clientSocketID){
+    
+    // Open the file for reading on the server side
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        // If the file is not found, send an error message to the client
+        char errorMsg[] = "File not found.";
+        send(clientSocketID, errorMsg, sizeof(errorMsg), 0);
+        return;
+    }
 
+    char buffer[1024];
+    int bytesReceived;
+
+    // Receive and write the file content
+    while ((bytesReceived = recv(clientSocketID, buffer, sizeof(buffer), 0)) > 0) {
+        fwrite(buffer, 1, bytesReceived, file);
+    }
+
+    if (bytesReceived < 0) {
+        perror("Error receiving file data");
+    }
+
+    fclose(file);
+
+    printf("File %s received successfully.\n", filename);
 }
 
 int main(int argc, char* argv[])
