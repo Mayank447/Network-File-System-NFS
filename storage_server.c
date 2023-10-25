@@ -154,9 +154,9 @@ void getFile_server_to_client(char* filename, int clientSocketID){
     printf("File %s received successfully.\n", filename);
 }
 
-/* Function to upload a file from client to server - uploadFile()*/
-void uploadFile_client_to_server(char* filename, int clientSocketID){
-    ;
+/* Function to upload a file - */
+void uploadFile(char* filename, int clientSocketID){
+    
 }
 
 
