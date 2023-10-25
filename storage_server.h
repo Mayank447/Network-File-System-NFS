@@ -54,7 +54,7 @@ struct StorageServer {
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
 void uploadFile_client_to_server(char* filename, int clientSocketID);
-void getFile_server_to_client(char* filename, int clientSocketID);
+void sendFile_server_to_client(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileAdditionalInfo(char* filename, int clientSocketID);
 int lockFile(File *file, int lock_type);
@@ -63,8 +63,8 @@ void read_releaseLock(File *file);
 
 // Functions for directory
 void createDir(Directory* parent, const char* dirname);
-void uploadDir(char* directoryname, int clientSocketID);
-void deleteDir(char* directoryname, int clientSocketID);
+void uploadDir_client_to_server(char* directoryname, int clientSocketID);
+void deleteDir_server_to_client(char* directoryname, int clientSocketID);
 void getDir(char* directoryname, int clientSocketID);
 void listDirectoryContents(Directory* dir);
 

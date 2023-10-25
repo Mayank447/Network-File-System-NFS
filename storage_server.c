@@ -126,7 +126,7 @@ void read_releaseLock(File *file) {
 }
 
 /* Function to send a file to the client - getFile()*/
-void getFile_server_to_client(char* filename, int clientSocketID){
+void sendFile_server_to_client(char* filename, int clientSocketID){
     
     // Open the file for reading on the server side
     FILE *file = fopen(filename, "rb");
@@ -155,8 +155,27 @@ void getFile_server_to_client(char* filename, int clientSocketID){
 }
 
 /* Function to upload a file - */
-void uploadFile(char* filename, int clientSocketID){
-    
+void uploadFile_client_to_server(char* filename, int clientSocketID){
+    // Open the file for reading on the server side
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        // If the file is not found, send an error message to the client
+        char errorMsg[] = "File not found.";
+        send(clientSocketID, errorMsg, sizeof(errorMsg), 0);
+        return;
+    }
+
+    char buffer[1024];
+    int bytesRead;
+
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (send(clientSocketID, buffer, bytesRead, 0) == -1) {
+            perror("Error sending file");
+            break;
+        }
+    }
+
+    fclose(file);
 }
 
 
