@@ -18,6 +18,8 @@
 #define SERVER_H
 
 #define MAX_CLIENT_CONNECTIONS 5
+#define RECEIVE_BUFFER_LENGTH 1024
+#define SEND_BUFFER_LENGTH 1024
 
 // Some Macros
 #define MAX_FILENAME_LENGTH 255
@@ -49,7 +51,7 @@ typedef struct dir_struct{
     char path[MAX_PATH_LENGTH];       // directory path (wrt root directory)
     int file_count;                   // no. of files inside the directory (not subdirectories)
     File* file_head;                  // head of singly linked list of files
-    FILE* file_tail;                  // tail of singly linked list of files
+    File* file_tail;                  // tail of singly linked list of files
     
     int subdir_count;                 // no. of subdirectories (not sub-subdirectories)
     struct dir_struct *subdir_head;   // head of singly linked list of subdirectories

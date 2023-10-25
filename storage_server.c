@@ -31,7 +31,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
     newFile->reader_count = 0;
-    newFile->write_client_id = NULL;
+    newFile->write_client_id = 0;
     newFile->is_locked = 0;
 }
 
@@ -114,57 +114,67 @@ void read_releaseLock(File *file) {
     }
 }
 
+
 /* Function to send a file to the client - getFile()*/
-void sendFile_server_to_client(char* filename, int clientSocketID){
-    
+void sendFile_server_to_client(char* filename, int clientSocketID)
+{
     // Open the file for reading on the server side
-    FILE *file = fopen(filename, "rb");
-    if (file == NULL) {
-        // If the file is not found, send an error message to the client
+    int file = open(filename, O_RDONLY);
+    if (file == -1) {
         char errorMsg[] = "File not found.";
-        send(clientSocketID, errorMsg, sizeof(errorMsg), 0);
+        if (send(clientSocketID, errorMsg, sizeof(errorMsg), 0) < 0) {
+            perror("Failed to send file not found error");
+        }
         return;
     }
 
-    char buffer[1024];
+    char buffer[SEND_BUFFER_LENGTH];
+    ssize_t bytesRead;
+
+    while ((bytesRead = read(file, buffer, sizeof(buffer))) > 0) {
+        if (send(clientSocketID, buffer, bytesRead, 0) < 0) {
+            perror("Error sending file");
+            close(file);
+            return;
+        }
+    }
+
+    close(file);
+    printf("File %s sent successfully.\n", filename);
+}
+
+
+/* Function to upload a file - */
+void uploadFile_client_to_server(char* filename, int clientSocketID)
+{
+    // Open the file for reading on the server side
+    int file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (file == -1) {
+        char errorMsg[] = "File not found.";
+        if(send(clientSocketID, errorMsg, sizeof(errorMsg), 0)<0){
+            perror("Failed to send file not found error");
+        }
+        return;
+    }
+
+    char buffer[RECEIVE_BUFFER_LENGTH];
     int bytesReceived;
 
     // Receive and write the file content
     while ((bytesReceived = recv(clientSocketID, buffer, sizeof(buffer), 0)) > 0) {
-        fwrite(buffer, 1, bytesReceived, file);
+        if(write(file, buffer, bytesReceived) < 0){
+            perror("Error writing to file");
+            close(file);
+            return;
+        }
     }
 
     if (bytesReceived < 0) {
         perror("Error receiving file data");
     }
 
-    fclose(file);
-
+    close(file);
     printf("File %s received successfully.\n", filename);
-}
-
-/* Function to upload a file - */
-void uploadFile_client_to_server(char* filename, int clientSocketID){
-    // Open the file for reading on the server side
-    FILE *file = fopen(filename, "rb");
-    if (file == NULL) {
-        // If the file is not found, send an error message to the client
-        char errorMsg[] = "File not found.";
-        send(clientSocketID, errorMsg, sizeof(errorMsg), 0);
-        return;
-    }
-
-    char buffer[1024];
-    int bytesRead;
-
-    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        if (send(clientSocketID, buffer, bytesRead, 0) == -1) {
-            perror("Error sending file");
-            break;
-        }
-    }
-
-    fclose(file);
 }
 
 // /*Function to copy files copyFile()*/                -------------------------- implement later
@@ -266,7 +276,7 @@ int main(int argc, char* argv[])
         perror("Error: binding socket\n");
         exit(1);
     }
-    printf("Storage Server has successfully started on port %d", PORT);
+    printf("Storage Server has successfully started on port %d\n", PORT);
 
     // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
 
@@ -288,9 +298,13 @@ int main(int argc, char* argv[])
 
     // Accepting connections from clients
     while(1){
-        if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count++], (socklen_t*)&addrlen)) < 0) {
+        if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count], (socklen_t*)&addrlen)) < 0) {
             perror("Accept failed");
             exit(EXIT_FAILURE);
+        }
+        else{
+            client_socket_count++;
+            printf("New connection..\n");
         }
 
     }
