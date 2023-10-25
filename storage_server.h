@@ -1,7 +1,21 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <pthread.h>
+#include <semaphore.h>
+
 #ifndef SERVER_H
 #define SERVER_H
 
 #define MAX_CLIENT_CONNECTIONS 5
+#define RECEIVE_BUFFER_LENGTH 1024
+#define SEND_BUFFER_LENGTH 1024
 
 // Some Macros
 #define MAX_FILENAME_LENGTH 255
