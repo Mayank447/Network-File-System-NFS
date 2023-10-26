@@ -211,7 +211,7 @@ void deleteFile(char* filename, int clientSocketID)
 /* Delete a folder - deleteFolder() */
 void deleteDirectory(const char* path, int clientSocketID)
 {
-
+    
 }
 
 // /*Function to copy files copyFile()*/                -------------------------- implement later
