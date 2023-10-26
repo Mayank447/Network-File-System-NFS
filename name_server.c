@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
     printf("Name Server has successfully started on port %d", PORT);
 
     // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
-
+    
 
     // Closing the socket
     if(close(socketID) < 0){
