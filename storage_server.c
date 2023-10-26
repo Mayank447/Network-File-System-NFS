@@ -1,3 +1,4 @@
+#include "header_files.h"
 #include "storage_server.h"
 
 int socketID; //socketID for the server
@@ -208,10 +209,56 @@ void deleteFile(char* filename, int clientSocketID)
     }
 }
 
-/* Delete a folder - deleteFolder() */
+/* Delete a folder - deleteDirectory() */
 void deleteDirectory(const char* path, int clientSocketID)
 {
-    
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+
+    if (dir == NULL) {
+        if (send(clientSocketID, "Sending message", 16, 0) < 0) {
+        perror("Error sending message");
+    }
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;  // Skip current and parent directories
+        }
+
+        char entryPath[MAX_PATH_LENGTH];
+        snprintf(entryPath, sizeof(entryPath), "%s/%s", path, entry->d_name);
+
+        if (entry->d_type == 4) {
+            // Recursive call for subdirectories
+            deleteDirectory(entryPath, clientSocketID);
+        } else {
+            // Delete files
+            deleteFile(entryPath, clientSocketID);
+
+            if (remove(entryPath) != 0) {
+                printf("Error deleting file: %s", entryPath);
+                if (send(clientSocketID, "sending message", 22, 0) < 0) {
+                    perror("Error sending message");
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+
+    // Remove the empty directory after deleting its contents
+    if (rmdir(path) != 0) {
+        printf("Error deleting directory: %s", path);
+        if (send(clientSocketID, "sending message", 22, 0) < 0) {
+                    perror("Error sending message");
+        } else {
+            if (send(clientSocketID, "Directory deleted succesfully", 22, 0) < 0) {
+                    perror("Error deleting directory");
+            }
+        }
+    }
 }
 
 // /*Function to copy files copyFile()*/                -------------------------- implement later
@@ -343,7 +390,8 @@ int main(int argc, char* argv[])
             client_socket_count++;
             printf("New connection..\n");
             //sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
-            deleteFile("temp.txt", clientSocket[client_socket_count-1]);
+            //deleteFile("temp.txt", clientSocket[client_socket_count-1]);
+            deleteDirectory("temp", clientSocket[client_socket_count-1]);
         }
 
         
