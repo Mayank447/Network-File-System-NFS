@@ -82,7 +82,8 @@ void read_releaseLock(File *file);
 // Functions for directory
 void createDir(Directory* parent, const char* dirname);
 void uploadDir_client_to_server(char* directoryname, int clientSocketID);
-void deleteDir_server_to_client(char* directoryname, int clientSocketID);
+void sendDir_server_to_client(char* directoryname, int clientSocketID);
+void deleteDirectory(const char* path, int clientSocketID);
 void getDir(char* directoryname, int clientSocketID);
 void listDirectoryContents(Directory* dir);
 

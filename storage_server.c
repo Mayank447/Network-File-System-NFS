@@ -115,7 +115,7 @@ void read_releaseLock(File *file) {
 }
 
 
-/* Function to send a file to the client - getFile()*/
+/* Send a file to the client - getFile()*/
 void sendFile_server_to_client(char* filename, int clientSocketID)
 {
     // Open the file for reading on the server side
@@ -143,8 +143,7 @@ void sendFile_server_to_client(char* filename, int clientSocketID)
     printf("File %s sent successfully.\n", filename);
 }
 
-
-/* Function to upload a file - */
+/* Upload a file from client to server - uploadFile()*/
 void uploadFile_client_to_server(char* filename, int clientSocketID)
 {
     // Open the file for reading on the server side
@@ -175,6 +174,35 @@ void uploadFile_client_to_server(char* filename, int clientSocketID)
 
     close(file);
     printf("File %s received successfully.\n", filename);
+}
+
+/* Delete a file - deleteFile() */
+void deleteFile(char* filename, int clientSocketID)
+{
+    if (access(filename, F_OK) != 0) { // File does not exist
+        if(send(clientSocketID, "No matching file", 17, 0)<0){
+            perror("Unable to send message: No matching files");
+        }
+        return;
+    }
+    
+    // Check for permission [TODO]
+    if (remove(filename) == 0){   
+        if(send(clientSocketID, "File deleted successfully", 26, 0)<0){
+            perror("Unable to send message: File deleted successfully");
+        }
+    }
+    else {
+        if(send(clientSocketID, "Unable to delete the file", 26, 0)<0){
+            perror("Unable to send message: Unable to delete the file");
+        }
+    }
+}
+
+/* Delete a folder - deleteFolder() */
+void deleteDirectory(const char* path, int clientSocketID)
+{
+
 }
 
 // /*Function to copy files copyFile()*/                -------------------------- implement later
@@ -305,7 +333,8 @@ int main(int argc, char* argv[])
         else{
             client_socket_count++;
             printf("New connection..\n");
-            sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
+            //sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
+            deleteFile("temp.txt", clientSocket[client_socket_count-1]);
         }
 
         
