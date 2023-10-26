@@ -149,6 +149,22 @@ void sendFile_server_to_client(char* filename, int clientSocketID)
         }
     }
 
+// update file access time
+    // struct stat file_stat;
+    // if (stat(filename, &file_stat) == 0) {
+    //     time_t access_time = file_stat.st_atime;
+
+    //     // Convert to a readable format.
+    //     struct tm *tm_info = localtime(&access_time);
+    //     char time_buffer[26];
+    //     strftime(time_buffer, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+    //     file->last_accessed = time_buffer;
+
+    // } else {
+    //     perror("Error getting file information");
+    //     return 1;
+    // }
+
     close(file);
     printf("File %s sent successfully.\n", filename);
 }
