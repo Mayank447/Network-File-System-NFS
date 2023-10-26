@@ -13,6 +13,9 @@
 #include <sys/stat.h>
 #include <limits.h>     
 #include <errno.h>
+#include <time.h>
+#include <sys/time.h>
+#include <libgen.h>
 
 #ifndef SERVER_H
 #define SERVER_H
@@ -28,6 +31,7 @@
 #define MAX_SUBDIRECTORIES 10 // To be converted to a linked list
 #define MAX_PATH_LENGTH 100
 #define MAX_ACCESSIBLE_PATHS 100
+#define MAX_DIR_TYPE 7
 
 // Error codes
 #define ERROR_LIMIT_REACHED 1
@@ -36,14 +40,18 @@
 #define ERROR_SOCKET 4
 
 typedef struct file_struct{
-    char name[MAX_FILENAME_LENGTH]; // filename
-    char path[MAX_PATH_LENGTH];     // filepath (wrt root directroy
-    int size;                       // filesize in bytes
-    int ownerID;                    // owner 
-    int is_locked;                  // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
-    int write_client_id;            // clientID of the client modifting it
-    int reader_count;               // no. of clients reading this file
-    struct file_struct* nextfile;   // pointer to the next filenode in the directory
+    char name[MAX_FILENAME_LENGTH];   // filename
+    char path[MAX_PATH_LENGTH];       // filepath (wrt root directroy
+    int size;                         // filesize in bytes
+    int ownerID;                      // owner 
+    int is_locked;                    // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
+    int write_client_id;              // clientID of the client modifting it
+    int reader_count;                 // no. of clients reading this file
+    struct file_struct* nextfile;     // pointer to the next filenode in the directory
+    char* file_type;                  // type of file created
+    int file_permissions;             // permissions of the file     --- 666 by default
+    int last_accessed;                // time of last access
+    int last_modified;                // time of last modification
 } File;
 
 typedef struct dir_struct{
@@ -57,6 +65,11 @@ typedef struct dir_struct{
     struct dir_struct *subdir_head;   // head of singly linked list of subdirectories
     struct dir_struct* subdir_tail;   // tail of singly linked list of subdirectories
     struct dir_struct* next_subDir;   // pointer to the next subdirectory
+
+    char dir_type[MAX_DIR_TYPE];      // type of dir created        --- folder by default
+    int file_permissions;             // permissions of the file    --- 666 by default
+    int last_accessed;                // time of last access
+    int last_modified;                // time of last modification
 
 } Directory;
 
