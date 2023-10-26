@@ -60,7 +60,7 @@ void createDir(Directory *parent, const char *dirname)
     newDir->last_accessed = 0; 
     newDir->last_modified = 0;
     newDir->file_permissions = 0;
-    
+
     // Inserting the new node at the end of the parent linked list
     if(parent == NULL){
         strcpy(newDir->path, "/");
