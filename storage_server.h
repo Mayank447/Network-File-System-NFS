@@ -1,11 +1,10 @@
-#include "header_files.h"
-
 #ifndef SERVER_H
 #define SERVER_H
 
 #define MAX_CLIENT_CONNECTIONS 5
 #define RECEIVE_BUFFER_LENGTH 1024
 #define SEND_BUFFER_LENGTH 1024
+#define ERROR_BUFFER_LENGTH 1024
 
 // Some Macros
 #define MAX_FILENAME_LENGTH 255
@@ -64,6 +63,8 @@ struct StorageServer {
     Directory* root_directory;  // Root directory for the storage server
     pthread_mutex_t lock;       // Lock mechanism (needs to be modified)
 };
+
+char ErrorMsg[1024];
 
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
