@@ -129,8 +129,9 @@ void sendFile_server_to_client(char* filename, int clientSocketID)
     // Open the file for reading on the server side
     int file = open(filename, O_RDONLY);
     if (file == -1) {
-        char errorMsg[] = "File not found.";
-        if (send(clientSocketID, errorMsg, sizeof(errorMsg), 0) < 0) {
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+        sprintf(ErrorMsg, "File not found.");
+        if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0)<0){
             perror("Failed to send file not found error");
         }
         return;
@@ -157,8 +158,9 @@ void uploadFile_client_to_server(char* filename, int clientSocketID)
     // Open the file for reading on the server side
     int file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
     if (file == -1) {
-        char errorMsg[] = "File not found.";
-        if(send(clientSocketID, errorMsg, sizeof(errorMsg), 0)<0){
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+        sprintf(ErrorMsg, "File not found.");
+        if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0)<0){
             perror("Failed to send file not found error");
         }
         return;
@@ -204,6 +206,75 @@ void deleteFile(char* filename, int clientSocketID)
         if(send(clientSocketID, "Unable to delete the file", 26, 0)<0){
             perror("Unable to send message: Unable to delete the file");
         }
+    }
+}
+
+/* Delete a folder - deleteDirectory() */
+void deleteDirectory(const char* path, int clientSocketID)
+{
+    DIR *dir;
+    struct stat stat_path, stat_entry;
+    struct dirent *entry;
+
+    // stat for the path
+    stat(path, &stat_path);
+
+    // if path does not exists or is not dir - exit with status -1
+    if (S_ISDIR(stat_path.st_mode) == 0) {
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+        sprintf(ErrorMsg, "Is not directory: %s\n", path);
+        if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0){
+            perror("Unable to send: Is not directory");
+        }
+        return;
+    }
+
+    // if not possible to read the directory for this user
+    if ((dir = opendir(path)) == NULL) {
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+        sprintf(ErrorMsg, "Can`t open directory: %s\n", path);
+        if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0){
+            perror("Unable to send: Can`t open directory");
+        }
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;  // Skip current and parent directories
+        }
+
+        char entryPath[MAX_PATH_LENGTH];
+        snprintf(entryPath, sizeof(entryPath), "%s/%s", path, entry->d_name);
+
+        if (entry->d_type == 4) { // Recursive call for subdirectories
+            deleteDirectory(entryPath, clientSocketID);
+        } 
+
+        else {
+            deleteFile(entryPath, clientSocketID); // Delete files
+
+            if (remove(entryPath) != 0) {
+                bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+                sprintf(ErrorMsg, "Error deleting file: %s", entryPath);
+                if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0) {
+                    printf("%s ", ErrorMsg);
+                    perror("Error sending message:");
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+
+    // Remove the empty directory after deleting its contents
+    if (rmdir(path) != 0) {
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
+        sprintf(ErrorMsg, "Error: Deleting the repository %s", path);
+        if(send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0) {
+            printf("%s ", ErrorMsg);
+            perror("Error sending message:");
+        } 
     }
 }
 

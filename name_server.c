@@ -1,3 +1,4 @@
+#include "header_files.h"
 #include "name_server.h"
 
 int socketID; //socketID for the Name Server

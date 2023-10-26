@@ -4,13 +4,14 @@
 #define MAX_CLIENT_CONNECTIONS 5
 #define RECEIVE_BUFFER_LENGTH 1024
 #define SEND_BUFFER_LENGTH 1024
+#define ERROR_BUFFER_LENGTH 1024
 
 // Some Macros
 #define MAX_FILENAME_LENGTH 255
 #define MAX_DIRNAME_LENGTH 255
 #define MAX_FILES 10  // To be converted to a linked list
 #define MAX_SUBDIRECTORIES 10 // To be converted to a linked list
-#define MAX_PATH_LENGTH 100
+#define MAX_PATH_LENGTH 1000
 #define MAX_ACCESSIBLE_PATHS 100
 #define MAX_DIR_TYPE 7
 
