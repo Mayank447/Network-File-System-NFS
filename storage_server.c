@@ -27,12 +27,18 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     strcpy(newFile->path, parent->path);
     strcat(newFile->path, filename);
 
+    /*initialize meta data*/
     newFile->size = 0;
     newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
     newFile->reader_count = 0;
     newFile->write_client_id = 0;
     newFile->is_locked = 0;
+    newFile->file_type = NULL;
+    newFile->file_permissions = 0;
+    newFile->last_accessed = 0;
+    newFile->last_modified = 0;
+    
 }
 
 
@@ -51,7 +57,10 @@ void createDir(Directory *parent, const char *dirname)
     newDir->next_subDir = NULL;
     newDir->file_head = newDir->file_tail = NULL;
     newDir->subdir_head = newDir->subdir_tail = NULL;
-
+    newDir->last_accessed = 0; 
+    newDir->last_modified = 0;
+    newDir->file_permissions = 0;
+    
     // Inserting the new node at the end of the parent linked list
     if(parent == NULL){
         strcpy(newDir->path, "/");
