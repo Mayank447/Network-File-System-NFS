@@ -1,3 +1,4 @@
+#include "header_files.h"
 #include "storage_server.h"
 
 int socketID; //socketID for the server
@@ -8,13 +9,13 @@ void handle_signal(int signum) {
     exit(signum);
 }
 
-/* Function to close the socket*/
+/* Close the socket*/
 void closeSocket(){
     close(socketID);
     exit(1);
 }
 
-/* Function to create a file - createFile() */
+/* Create a file - createFile() */
 void createFile(Directory *parent, const char *filename, int ownerID)
 {
     File* newFile = (File*)malloc(sizeof(File));
@@ -41,8 +42,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     
 }
 
-
-/* Function to create a Directory - createDir() */
+/* Create a Directory - createDir() */
 void createDir(Directory *parent, const char *dirname)
 {
     Directory* newDir = (Directory*)malloc(sizeof(Directory));
@@ -80,8 +80,7 @@ void createDir(Directory *parent, const char *dirname)
     }   
 }
 
-
-/* Function to list all the directory contents*/
+/* List all the directory contents*/
 void listDirectoryContents(Directory* parent)
 {
     // Printing all the subdirectories
@@ -110,19 +109,19 @@ int lockFile(File *file, int lock_type)
     return 1;
 }
 
-/* Release lock on a file */
+/* Release write lock on a file */
 void write_releaseLock(File *file, int clientID) {
     if(file->is_locked == 2 && file->write_client_id == clientID){
         file->is_locked = 0;
     }
 }
 
+/* Release read lock on a file */
 void read_releaseLock(File *file) {
     if(--file->reader_count == 0 && file->is_locked == 1) {
         file->is_locked = 0;
     }
 }
-
 
 /* Send a file to the client - getFile()*/
 void sendFile_server_to_client(char* filename, int clientSocketID)
@@ -206,12 +205,6 @@ void deleteFile(char* filename, int clientSocketID)
             perror("Unable to send message: Unable to delete the file");
         }
     }
-}
-
-/* Delete a folder - deleteFolder() */
-void deleteDirectory(const char* path, int clientSocketID)
-{
-    
 }
 
 // /*Function to copy files copyFile()*/                -------------------------- implement later
@@ -343,7 +336,8 @@ int main(int argc, char* argv[])
             client_socket_count++;
             printf("New connection..\n");
             //sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
-            deleteFile("temp.txt", clientSocket[client_socket_count-1]);
+            //deleteFile("temp.txt", clientSocket[client_socket_count-1]);
+            deleteDirectory("temp", clientSocket[client_socket_count-1]);
         }
 
         

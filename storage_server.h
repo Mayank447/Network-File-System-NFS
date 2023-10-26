@@ -1,5 +1,3 @@
-#include "header_files.h"
-
 #ifndef SERVER_H
 #define SERVER_H
 
@@ -64,6 +62,8 @@ struct StorageServer {
     Directory* root_directory;  // Root directory for the storage server
     pthread_mutex_t lock;       // Lock mechanism (needs to be modified)
 };
+
+char ErrorMsg[1024];
 
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
