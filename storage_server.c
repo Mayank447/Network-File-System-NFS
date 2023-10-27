@@ -148,7 +148,7 @@ void sendFile_server_to_client(char* filename, int clientSocketID)
         }
     }
 
-// update file access time
+    // update file access time
     // struct stat file_stat;
     // if (stat(filename, &file_stat) == 0) {
     //     time_t access_time = file_stat.st_atime;
@@ -294,33 +294,27 @@ void deleteDirectory(const char* path, int clientSocketID)
     }
 }
 
-// /*Function to copy files copyFile()*/                -------------------------- implement later
-// int copyFile(const char *sourcePath, const char *destinationPath) {
-//     FILE *sourceFile, *destinationFile;
-//     char ch;
+// Copy files between 2 servers - copyFilesender()*/                -------------------------- implement later
+int copyFile_sender(const char *sourcePath, struct sockaddr_in server_address) {
+    int serverSocket;
+    if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
+        perror("Error connecting to server");
+        return 1;
+    }
+    sendFile_server_to_client(sourcePath, serverSocket);
+    return 0;
+}
 
-//     sourceFile = fopen(sourcePath, "rb");
-//     if (sourceFile == NULL) {
-//         perror("Unable to open source file");
-//         return 1;
-//     }
-
-//     destinationFile = fopen(destinationPath, "wb");
-//     if (destinationFile == NULL) {
-//         perror("Unable to create or open destination file");
-//         fclose(sourceFile);
-//         return 1;
-//     }
-
-//     while ((ch = fgetc(sourceFile)) != EOF) {
-//         fputc(ch, destinationFile);
-//     }
-
-//     fclose(sourceFile);
-//     fclose(destinationFile);
-
-//     return 0;
-// }
+// Copy files between 2 servers - copyFileReceiver()*/                -------------------------- implement later
+int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
+    int serverSocket;
+    if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
+        perror("Error connecting to server");
+        return 1;
+    }
+    uploadFile_client_to_server(destinationPath, serverSocket);
+    return 0;
+}
 
 // /*Function to copy directories copyDirectory()*/     -------------------------- implement later
 // void copyDirectory(const char *sourceDir, const char *destinationDir) {
@@ -415,7 +409,7 @@ int main(int argc, char* argv[])
 
     // Accepting connections from clients
     while(1){
-        if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count], (socklen_t*)&addrlen)) < 0) {
+            if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count], (socklen_t*)&addrlen)) < 0) {
             perror("Accept failed");
             exit(EXIT_FAILURE);
         }
