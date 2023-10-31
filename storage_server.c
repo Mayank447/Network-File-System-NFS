@@ -316,6 +316,29 @@ int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_add
     return 0;
 }
 
+/* Function to rename file */
+int renameFile(const char *oldFileName, const char *newFileName, int clientSocketID) {
+    // Attempt to rename the file
+    if (rename(oldFileName, newFileName) == 0) {
+        // Successfully renamed the file, send a success response to the client
+        char response[1024];
+        snprintf(response, sizeof(response), "RENAME_SUCCESS %s %s", oldFileName, newFileName);
+        if (send(clientSocketID, response, strlen(response), 0) < 0) {
+            perror("Error sending rename success response to the client");
+        }
+        return 0; // Successfully renamed the file
+    } else {
+        // Failed to rename the file, send an error response to the client
+        char response[1024];
+        snprintf(response, sizeof(response), "RENAME_ERROR %s %s", oldFileName, newFileName);
+        if (send(clientSocketID, response, strlen(response), 0) < 0) {
+            perror("Error sending rename error response to the client");
+        }
+        perror("Error renaming the file");
+        return -1; // Failed to rename the file
+    }
+}
+
 // /*Function to copy directories copyDirectory()*/     -------------------------- implement later
 // void copyDirectory(const char *sourceDir, const char *destinationDir) {
 //     struct dirent *entry;
