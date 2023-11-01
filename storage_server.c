@@ -50,6 +50,8 @@ void *receiveDataOnClientPort(void *arg) {
     }
 }
 
+
+
 void *receiveDataOnNameServerPort(void *arg) {
     int nameServerSocket = *(int *)arg;
     char buffer[1024];
