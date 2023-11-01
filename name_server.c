@@ -179,110 +179,175 @@
 // }
 
 
-#include "header_files.h"
-#include "name_server.h"
 
-#define MAX_STORAGE_SERVERS 10
-#define MAX_CLIENTS 10
-#define STORAGE_SERVER_PORT 5000
-#define CLIENT_PORT 5001
-#define BUFFER_SIZE 1024
-#define MAX_PATHS 10
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
-// Function to handle storage server connections
-void* handleStorageConnection(void* storageSocket) {
-    int storageSocketID = *(int*)storageSocket;
-    
-    // Handle storage server connection here.
-    
-    // Close the storageSocketID when done.
-    close(storageSocketID);
+#define CLIENT_PORT 8080
+#define STORAGE_SERVER_PORT 9090
 
-    pthread_exit(NULL);
+// Data structure to represent file information
+struct StorageServerInfo {
+    char ip_address[256];
+    int naming_server_port;
+    int client_server_port;
+    struct StorageServerInfo* next;
+};
+
+struct StorageServerInfo* storageServerList = NULL;
+
+// Mutex for protecting the fileTable
+pthread_mutex_t fileTableMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Mutex for controlling server initialization
+pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Sockets for clients and storage servers
+int clientServerSocket, storageServerSocket;
+
+// Function to add storage server information to the linked list
+void addStorageServerInfo(const char* ip, int ns_port, int cs_port) {
+    struct StorageServerInfo* newServer = (struct StorageServerInfo*)malloc(sizeof(struct StorageServerInfo));
+    strcpy(newServer->ip_address, ip);
+    newServer->naming_server_port = ns_port;
+    newServer->client_server_port = cs_port;
+    newServer->next = storageServerList;
+    storageServerList = newServer;
 }
 
-// Function to handle client connections
-void* handleClientConnection(void* clientSocket) {
-    int clientSocketID = *(int*)clientSocket;
-    
-    // Handle client connection here.
-    
-    // Close the clientSocketID when done.
-    close(clientSocketID);
+// Function to handle client requests
+void* handleClientRequests(void* arg) {
+    int new_socket;
+    struct sockaddr_in new_addr;
+    socklen_t addr_size;
+    char buffer[1024];
+    int bytesReceived;
 
-    pthread_exit(NULL);
+    while (1) {
+        addr_size = sizeof(new_addr);
+        new_socket = accept(clientServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a client connection
+
+        // Handle client requests here
+        // ...
+
+        close(new_socket);
+    }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <port>\n", argv[0]);
+// Function to handle storage server queries
+void parseStorageServerInfo(const char* data, char* ip_address, int* ns_port, int* cs_port) {
+    // Implement a parsing logic based on your message format
+    // For example, if your message format is "IP:PORT1:PORT2", you can use sscanf
+    if (sscanf(data, "%[^:]:%d:%d", ip_address, ns_port, cs_port) != 3) {
+        fprintf(stderr, "Error parsing storage server info: %s\n", data);
+    }
+}
+
+void* handleStorageServerQueries(void* arg) {
+    struct sockaddr_in server_addr, new_addr;
+    socklen_t addr_size;
+    char buffer[1024];
+    int bytesReceived;
+
+    while (1) {
+        addr_size = sizeof(new_addr);
+        int new_socket = accept(storageServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a storage server connection
+
+        // Handle storage server queries here
+        while (1) {
+            bytesReceived = recv(new_socket, buffer, 1024, 0);
+            if (bytesReceived < 0) {
+                perror("Error in receiving data");
+                exit(1);
+            }
+            buffer[bytesReceived] = '\0';
+
+            // Check if the received message is "NEW STORAGE SERVER CREATED"
+            if (strcmp(buffer, "NEW STORAGE SERVER CREATED") == 0) {
+                // Receive additional information from the storage server
+                char ip_address[256];
+                int naming_server_port, client_server_port;
+
+                bytesReceived = recv(new_socket, buffer, 1024, 0);
+                if (bytesReceived < 0) {
+                    perror("Error in receiving data");
+                    exit(1);
+                }
+                buffer[bytesReceived] = '\0';
+
+                // Parse the received information
+                parseStorageServerInfo(buffer, ip_address, &naming_server_port, &client_server_port);
+
+                // Add the information to the linked list
+                addStorageServerInfo(ip_address, naming_server_port, client_server_port);
+            }
+        }
+
+        close(new_socket);
+    }
+}
+
+// Function to close server connections
+void closeConnections() {
+    close(clientServerSocket);
+    close(storageServerSocket);
+}
+
+int main() {
+    initializeFileTable();
+
+    pthread_t clientThread, storageServerThread;
+
+    // Initialize server sockets
+    clientServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientServerSocket < 0 || storageServerSocket < 0) {
+        perror("Error in socket");
         exit(1);
     }
 
-    int PORT = atoi(argv[1]);
-    int namingServerSocket;
-    struct sockaddr_in namingServerAddress;
+    struct sockaddr_in clientServerAddr, storageServerAddr;
+    clientServerAddr.sin_family = AF_INET;
+    clientServerAddr.sin_port = htons(CLIENT_PORT);
+    clientServerAddr.sin_addr.s_addr = INADDR_ANY;
+    storageServerAddr.sin_family = AF_INET;
+    storageServerAddr.sin_port = htons(STORAGE_SERVER_PORT);
+    storageServerAddr.sin_addr.s_addr = INADDR_ANY;
 
-    namingServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (namingServerSocket < 0) {
-        perror("Error: opening naming server socket\n");
+    if (bind(clientServerSocket, (struct sockaddr*)&clientServerAddr, sizeof(clientServerAddr)) < 0 ||
+        bind(storageServerSocket, (struct sockaddr*)&storageServerAddr, sizeof(storageServerAddr)) < 0) {
+        perror("Error in binding");
         exit(1);
     }
 
-    memset(&namingServerAddress, 0, sizeof(namingServerAddress));
-    namingServerAddress.sin_family = AF_INET;
-    namingServerAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    namingServerAddress.sin_port = htons(PORT);
-
-    if (bind(namingServerSocket, (struct sockaddr*)&namingServerAddress, sizeof(namingServerAddress)) < 0) {
-        perror("Error: binding naming server socket\n");
+    if (listen(clientServerSocket, 10) == 0 && listen(storageServerSocket, 10) == 0) {
+        printf("Listening for client requests and storage server queries...\n");
+    } else {
+        perror("Error in listening");
         exit(1);
     }
 
-    printf("Naming Server has successfully started on port %d\n", PORT);
+    pthread_create(&clientThread, NULL, handleClientRequests, NULL);
+    pthread_create(&storageServerThread, NULL, handleStorageServerQueries, NULL);
 
-    // Initialize the naming server data structures.
+    // Wait for user input to close connections
+    printf("Press Enter to close server connections...\n");
+    getchar();
 
-    // Start a thread pool for handling storage server connections.
-    pthread_t storageThreads[MAX_STORAGE_SERVERS];
-    int storageSockets[MAX_STORAGE_SERVERS];
+    // Close server connections
+    closeConnections();
 
-    for (int i = 0; i < MAX_STORAGE_SERVERS; i++) {
-        // Accept incoming storage server connections.
-        struct sockaddr_in storageServerAddr;
-        socklen_t storageAddrLen = sizeof(storageServerAddr);
-        storageSockets[i] = accept(namingServerSocket, (struct sockaddr*)&storageServerAddr, &storageAddrLen);
-
-        // Create a thread to handle the storage server connection.
-        pthread_create(&storageThreads[i], NULL, handleStorageConnection, &storageSockets[i]);
-    }
-
-    // Start a thread pool for handling client connections.
-    pthread_t clientThreads[MAX_CLIENTS];
-    int clientSockets[MAX_CLIENTS];
-
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        // Accept incoming client connections.
-        struct sockaddr_in clientAddr;
-        socklen_t clientAddrLen = sizeof(clientAddr);
-        clientSockets[i] = accept(namingServerSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
-
-        // Create a thread to handle the client connection.
-        pthread_create(&clientThreads[i], NULL, handleClientConnection, &clientSockets[i]);
-    }
-
-    // Close the naming server socket when done.
-    close(namingServerSocket);
-
-    // Wait for all threads to finish.
-    for (int i = 0; i < MAX_STORAGE_SERVERS; i++) {
-        pthread_join(storageThreads[i], NULL);
-    }
-    
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        pthread_join(clientThreads[i], NULL);
-    }
+    // Wait for threads to finish
+    pthread_join(clientThread, NULL);
+    pthread_join(storageServerThread, NULL);
 
     return 0;
 }
+
+
 
