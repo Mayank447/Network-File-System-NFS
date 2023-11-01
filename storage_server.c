@@ -406,6 +406,32 @@ void collectAccessiblePaths() {
 
     fclose(file);
 }
+
+int talkToStorageServer(const char* storageServerIP, int storageServerPort) {
+    int storageServerSocket;
+    struct sockaddr_in storageServerAddr;
+
+    // Create a socket for communication with the Storage Server
+    if ((storageServerSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Error: opening socket for Storage Server");
+        return -1;
+    }
+
+    memset(&storageServerAddr, 0, sizeof(storageServerAddr));
+    storageServerAddr.sin_family = AF_INET;
+    storageServerAddr.sin_port = htons(storageServerPort);
+    storageServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // Connect to the Storage Server
+    if (connect(storageServerSocket, (struct sockaddr*)&storageServerAddr, sizeof(storageServerAddr)) < 0) {
+        perror("Error: connecting to Storage Server");
+        close(storageServerSocket);
+        return -1;
+    }
+    return storageServerSocket;
+    // Close the socket when done
+    //close(storageServerSocket);
+}
 int namingServerNumber;
 // Function to send vital information to the Naming Server and receive a number
 int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
@@ -421,6 +447,7 @@ int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
     nsAddress.sin_family = AF_INET;
     nsAddress.sin_port = htons(9090);
     nsAddress.sin_addr.s_addr = inet_addr(nsIP);
+    bind(nsSocket, (struct sockaddr*)&nsAddress, sizeof(nsAddress));
     // Connect to the Naming Server
     if (connect(nsSocket, (struct sockaddr*)&nsAddress, sizeof(nsAddress)) < 0) {
         perror("Error: connecting to Naming Server");
@@ -437,16 +464,24 @@ int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
         //close(nsSocket);
         return -1;
     }
+    if (send(nsSocket, ":", 1, 0) < 0) {
+        perror("Error: sending colon to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
     char infoBuffer[PATH_BUFFER_SIZE];
-    snprintf(infoBuffer, sizeof(infoBuffer), "%s:%d:%d", nsIP, nsPort, clientPort);
-
+    snprintf(infoBuffer, sizeof(infoBuffer), "%s;%d;%d", nsIP, nsPort, clientPort);
     // Send the information to the Naming Server
     if (send(nsSocket, infoBuffer, strlen(infoBuffer), 0) < 0) {
         perror("Error: sending information to Naming Server");
         //close(nsSocket);
         return -1;
     }
-
+     if (send(nsSocket, ":", 1, 0) < 0) {
+        perror("Error: sending colon to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
     // Open the file for reading
     FILE* pathFile = fopen(filename, "r");
     if (pathFile == NULL) {
@@ -457,12 +492,18 @@ int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
     // Read and send each path
     char path[PATH_BUFFER_SIZE];
     while (fgets(path, sizeof(path), pathFile) != NULL) {
+        printf("path :%s",path);
         if (send(nsSocket, path, strlen(path), 0) < 0) {
             perror("Error: sending path to Naming Server");
             fclose(pathFile);
             //close(nsSocket);
             return -1;
         }
+        if (send(nsSocket, ":", 1, 0) < 0) {
+        perror("Error: sending colon to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
     }
 
     // Send a "completed" message
@@ -473,17 +514,23 @@ int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
         //close(nsSocket);
         return -1;
     }
-
+    if (send(nsSocket, ":", 1, 0) < 0) {
+        perror("Error: sending colon to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
     // Close the file and the socket
     fclose(pathFile);
     //close(nsSocket);
 
     // Receive a number from the Naming Server
     char responseBuffer[PATH_BUFFER_SIZE];
+    //int socketofNS=talkToStorageServer(nsIP, nsPort);
     if (recv(nsSocket, responseBuffer, sizeof(responseBuffer), 0) < 0) {
         perror("Error: receiving number from Naming Server");
         return -1;
     }
+    close(nsSocket);
     namingServerNumber = atoi(responseBuffer);
 
     return namingServerNumber;
