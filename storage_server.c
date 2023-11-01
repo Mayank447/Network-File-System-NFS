@@ -390,7 +390,7 @@ char filename[50]="paths_SS.txt";
 // Function to collect accessible paths from the user and store them in a file
 void collectAccessiblePaths() {
     char path[PATH_BUFFER_SIZE];
-    FILE *file = fopen(filename, "a"); // Open the file in append mode
+    FILE *file = fopen(filename, "w"); // Open the file in append mode
     if (file == NULL) {
         perror("Error opening paths_SS.txt");
         return;
@@ -515,7 +515,9 @@ int main(int argc, char* argv[]) {
         rename("path_SS.txt",filename);
         printf("Received Naming Server number: %d\n", ServerNumber);
     }
-
+    while(1){
+        ;
+    }
     // Close the socket
     // if (close(socketID) < 0) {
     //     perror("Error: closing socket\n");
