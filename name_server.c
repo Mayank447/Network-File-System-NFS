@@ -421,7 +421,7 @@ void handleClientRequests(void* arg) {
         new_socket = accept(clientServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a client connection
 
         // Handle client requests here
-        // ...
+        // ...get file path, check if the file exists in the storage servers, and send the file to the client
 
         close(new_socket);
     }
@@ -434,6 +434,11 @@ void parseStorageServerInfo(const char* data, char* ip_address, int* ns_port, in
     if (sscanf(data, "%[^:]:%d:%d", ip_address, ns_port, cs_port) != 3) {
         fprintf(stderr, "Error parsing storage server info: %s\n", data);
     }
+}
+
+void initStorageServer()
+{
+    
 }
 
 void handleStorageServerQueries() {
@@ -459,6 +464,26 @@ void handleStorageServerQueries() {
             }
             buffer[bytesReceived] = '\0';
             if (strcmp(buffer, "COMPLETED") == 0) {
+                    // send ss number to nameserver
+                    int ss_no = storageServerList->ss_id;
+
+                    if (send(new_socket, &ss_no, sizeof(int), 0) < 0) {
+                        perror("Error sending ss_id");
+                        exit(1);
+                    }
+
+                    // get file path from client
+                    // if path doesnt exist then print msg
+                    // char buffer_2[1024];
+                    // if(recv(client_server_port, buffer_2, 1024, 0) < 0)
+                    // {
+                    //     perror("recieve error");
+                    // }
+                    // char * file_path = buffer_2;
+                    // if(searchStorageServer(file_path, storageServerList) < 0)
+                    // {
+                    //     printf("requested path  not accessible\n");
+                    // }
                     break;
                 }
                 // Check if the received message is "SENDING STORAGE SERVER INFORMATION"
