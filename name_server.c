@@ -191,11 +191,15 @@
 #define CLIENT_PORT 8080
 #define STORAGE_SERVER_PORT 9090
 
+int ss_count = 0;
+
 // Data structure to represent file information
 struct StorageServerInfo {
+    int ss_id;
     char ip_address[256];
     int naming_server_port;
     int client_server_port;
+    char accessible_paths[300][300];
     struct StorageServerInfo* next;
 };
 
@@ -210,13 +214,47 @@ pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
 // Sockets for clients and storage servers
 int clientServerSocket, storageServerSocket;
 
+// Function to search for a path in storage servers
+int searchStorageServer(const char* file_path, struct StorageServerInfo* ss) {
+    int found = 0;
+    struct StorageServerInfo* temp = ss;
+
+    while (temp != NULL) {
+        // Search accessible paths in the current storage server
+        int i = 0;
+        while (temp->accessible_paths[i][0] != '\0') {  // Check if the path is not an empty string
+            if (strcmp(file_path, temp->accessible_paths[i]) == 0) {
+                found = 1;
+                break; // Path found, no need to continue searching
+            }
+            i++;
+        }
+
+        if (found) {
+            break; // Path found in this storage server, exit the loop
+        }
+
+        temp = temp->next;
+    }
+
+    if (found) {
+        return 0; // Found the path in a storage server
+    } else {
+        return -1; // Path not found in any storage server
+    }
+}
 // Function to add storage server information to the linked list
 void addStorageServerInfo(const char* ip, int ns_port, int cs_port) {
     struct StorageServerInfo* newServer = (struct StorageServerInfo*)malloc(sizeof(struct StorageServerInfo));
     strcpy(newServer->ip_address, ip);
     newServer->naming_server_port = ns_port;
     newServer->client_server_port = cs_port;
+    newServer->ss_id = ++ss_count;
     newServer->next = storageServerList;
+    for(int i = 0; i < 300; i++)
+    {
+        newServer->accessible_paths[newServer->ss_id][i] = NULL;
+    }
     storageServerList = newServer;
 }
 
