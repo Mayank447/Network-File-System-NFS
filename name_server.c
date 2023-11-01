@@ -243,6 +243,35 @@ int searchStorageServer(const char* file_path, struct StorageServerInfo* ss) {
         return -1; // Path not found in any storage server
     }
 }
+
+// Data structure for hash based storage
+struct HashMap {
+    char* file_path;
+    struct StorageServerInfo* storage_server;
+    struct HashMap* next;
+};
+
+// Function to create a new HashMap entry
+struct HashMap* createHashMapEntry(const char* file_path, struct StorageServerInfo* ss) {
+    struct HashMap* entry = (struct HashMap*)malloc(sizeof(struct HashMap));
+    entry->file_path = strdup(file_path);
+    entry->storage_server = ss;
+    entry->next = NULL;
+    return entry;
+}
+
+// Function to perform a fast lookup in the HashMap
+struct StorageServerInfo* efficientStorageServerSearch(struct HashMap* hashmap, const char* file_path) {
+    struct HashMap* current = hashmap;
+    while (current != NULL) {
+        if (strcmp(current->file_path, file_path) == 0) {
+            return current->storage_server;
+        }
+        current = current->next;
+    }
+    return NULL; // File path not found in the HashMap
+}
+
 // Function to add storage server information to the linked list
 void addStorageServerInfo(const char* ip, int ns_port, int cs_port) {
     struct StorageServerInfo* newServer = (struct StorageServerInfo*)malloc(sizeof(struct StorageServerInfo));
