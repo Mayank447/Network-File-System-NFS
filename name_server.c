@@ -1,3 +1,4 @@
+
 // #include "header_files.h"
 // #include "name_server.h"
 
@@ -391,6 +392,218 @@ struct StorageServerInfo* efficientStorageServerSearch(struct HashMap* hashmap, 
         current = current->next;
     }
     return NULL; // File path not found in the HashMap
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
+#define CLIENT_PORT 8080
+#define STORAGE_SERVER_PORT 9090
+
+int ss_count = 0;
+
+// Data structure to represent file information
+struct StorageServerInfo {
+    int ss_id;
+    char ip_address[256];
+    int naming_server_port;
+    int client_server_port;
+    char accessible_paths[300][300];
+    struct StorageServerInfo* next;
+};
+
+struct StorageServerInfo* storageServerList = NULL;
+
+// Mutex for protecting the fileTable
+pthread_mutex_t fileTableMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Mutex for controlling server initialization
+pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Sockets for clients and storage servers
+int clientServerSocket, storageServerSocket;
+
+#define HASH_TABLE_SIZE 1000
+
+// Define a struct for key-value pairs
+struct KeyValue {
+    char* key;
+    int value;
+    struct KeyValue* next;
+    struct KeyValue* prev; // For LRU
+};
+
+// Define the hashmap structure
+struct LRU_HashMap {
+    struct KeyValue* table[HASH_TABLE_SIZE];
+    struct KeyValue* lru_head; // LRU head
+    struct KeyValue* lru_tail; // LRU tail
+    int size;
+};
+
+// Hash function
+int hash(char* key) {
+    int hash = 0;
+    for (int i = 0; key[i]; i++) {
+        hash = (hash * 31 + key[i]) % HASH_TABLE_SIZE;
+    }
+    return hash;
+}
+
+// Create a new hashmap
+struct LRU_HashMap* createHashMap() {
+    struct LRU_HashMap* map = (struct LRU_HashMap*)malloc(sizeof(struct LRU_HashMap));
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        map->table[i] = NULL;
+    }
+    map->lru_head = NULL;
+    map->lru_tail = NULL;
+    map->size = 0;
+    return map;
+}
+
+// Insert a key-value pair into the hashmap, enforcing a capacity of 20
+void insert(struct LRU_HashMap* map, char* key, int value) {
+    int index = hash(key);
+    struct KeyValue* newNode = (struct KeyValue*)malloc(sizeof(struct KeyValue));
+    newNode->key = strdup(key);
+    newNode->value = value;
+    newNode->next = map->table[index];
+    map->table[index] = newNode;
+
+    // Update LRU list
+    if (map->lru_head == NULL) {
+        map->lru_head = newNode;
+        map->lru_tail = newNode;
+    } else {
+        newNode->prev = map->lru_tail;
+        map->lru_tail->next = newNode;
+        map->lru_tail = newNode;
+    }
+
+    // Check and remove the least recently used item if the cache exceeds the capacity
+    if (map->size >= 20) {
+        // Remove the least recently used item from the cache
+        struct KeyValue* lruItem = map->lru_head;
+
+        // Update the LRU head
+        map->lru_head = lruItem->next;
+        if (map->lru_head != NULL) {
+            map->lru_head->prev = NULL;
+        }
+
+        // Remove the item from the hash table
+        int lruIndex = hash(lruItem->key);
+        struct KeyValue* current = map->table[lruIndex];
+        struct KeyValue* prev = NULL;
+
+        while (current != NULL) {
+            if (strcmp(current->key, lruItem->key) == 0) {
+                if (prev == NULL) {
+                    map->table[lruIndex] = current->next;
+                } else {
+                    prev->next = current->next;
+                }
+                free(lruItem->key);
+                free(lruItem);
+                break;
+            }
+            prev = current;
+            current = current->next;
+        }
+    } else {
+        // Increment the cache size
+        map->size++;
+    }
+}
+
+// Search for a key in the hashmap and return its value
+int get(struct LRU_HashMap* map, char* key) {
+    int index = hash(key);
+    struct KeyValue* current = map->table[index];
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            // Update LRU list (move to the tail)
+            if (current != map->lru_tail) {
+                if (current == map->lru_head) {
+                    map->lru_head = current->next;
+                    map->lru_head->prev = NULL;
+                } else {
+                    current->prev->next = current->next;
+                    current->next->prev = current->prev;
+                }
+                current->prev = map->lru_tail;
+                map->lru_tail->next = current;
+                map->lru_tail = current;
+                current->next = NULL;
+            }
+            return current->value;
+        }
+        current = current->next;
+    }
+    return -1; // Key not found
+}
+
+// Function to search for a path in storage servers
+int searchStorageServer(const char* file_path, struct StorageServerInfo* ss) {
+    int found = 0;
+    struct StorageServerInfo* temp = ss;
+
+    while (temp != NULL) {
+        // Search accessible paths in the current storage server
+        int i = 0;
+        while (temp->accessible_paths[i][0] != '\0') {  // Check if the path is not an empty string
+            if (strcmp(file_path, temp->accessible_paths[i]) == 0) {
+                found = 1;
+                break; // Path found, no need to continue searching
+            }
+            i++;
+        }
+
+        if (found) {
+            break; // Path found in this storage server, exit the loop
+        }
+
+        temp = temp->next;
+    }
+
+    if (found) {
+        return 0; // Found the path in a storage server
+    } else {
+        return -1; // Path not found in any storage server
+    }
+}
+
+// Data structure for hash based storage
+struct HashMap {
+    char* file_path;
+    struct StorageServerInfo* storage_server;
+    struct HashMap* next;
+};
+
+// Function to create a new HashMap entry
+struct HashMap* createHashMapEntry(const char* file_path, struct StorageServerInfo* ss) {
+    struct HashMap* entry = (struct HashMap*)malloc(sizeof(struct HashMap));
+    entry->file_path = strdup(file_path);
+    entry->storage_server = ss;
+    entry->next = NULL;
+    return entry;
+}
+
+// Function to perform a fast lookup in the HashMap
+struct StorageServerInfo* efficientStorageServerSearch(struct HashMap* hashmap, const char* file_path) {
+    struct HashMap* current = hashmap;
+    while (current != NULL) {
+        if (strcmp(current->file_path, file_path) == 0) {
+            return current->storage_server;
+        }
+        current = current->next;
+    }
+    return NULL; // File path not found in the HashMap
 }
 
 // Function to add storage server information to the linked list
@@ -403,7 +616,7 @@ void addStorageServerInfo(const char* ip, int ns_port, int cs_port) {
     newServer->next = storageServerList;
     for(int i = 0; i < 300; i++)
     {
-        newServer->accessible_paths[newServer->ss_id][i] = NULL;
+        newServer->accessible_paths[i][0] = '\0';
     }
     storageServerList = newServer;
 }
@@ -441,42 +654,51 @@ void* handleStorageServerQueries(void* arg) {
     socklen_t addr_size;
     char buffer[1024];
     int bytesReceived;
-
+    int receivingInfo = 0; // State variable
+    char ip_address[256];
+    int naming_server_port, client_server_port;
+    int pathIndex=-1;
     while (1) {
         addr_size = sizeof(new_addr);
         int new_socket = accept(storageServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a storage server connection
-
         // Handle storage server queries here
         while (1) {
             bytesReceived = recv(new_socket, buffer, 1024, 0);
+            receivingInfo++;
+            pathIndex++;
             if (bytesReceived < 0) {
                 perror("Error in receiving data");
                 exit(1);
             }
             buffer[bytesReceived] = '\0';
-
-            // Check if the received message is "NEW STORAGE SERVER CREATED"
-            if (strcmp(buffer, "NEW STORAGE SERVER CREATED") == 0) {
-                // Receive additional information from the storage server
-                char ip_address[256];
-                int naming_server_port, client_server_port;
-
-                bytesReceived = recv(new_socket, buffer, 1024, 0);
-                if (bytesReceived < 0) {
-                    perror("Error in receiving data");
-                    exit(1);
+            if (strcmp(buffer, "COMPLETED") == 0) {
+                    
+                    break;
                 }
-                buffer[bytesReceived] = '\0';
-
+                // Check if the received message is "SENDING STORAGE SERVER INFORMATION"
+                if (strcmp(buffer, "SENDING STORAGE SERVER INFORMATION") == 0) {
+                    // Set the state to receiving storage server information
+                    receivingInfo = 1;
+                    continue;
+                }
+            // Check if we are in the state of receiving storage server information
+            if (receivingInfo == 1) {
                 // Parse the received information
                 parseStorageServerInfo(buffer, ip_address, &naming_server_port, &client_server_port);
-
                 // Add the information to the linked list
                 addStorageServerInfo(ip_address, naming_server_port, client_server_port);
+                // Reset the state
+                receivingInfo = 0;
+            }
+            else{
+                    // Store the received information in accessible_paths
+                    if (pathIndex >= 0 && pathIndex < 300) {
+                        strcpy(storageServerList->accessible_paths[pathIndex], buffer);
+                    }
             }
         }
 
-        close(new_socket);
+        //close(new_socket);
     }
 }
 
@@ -487,10 +709,7 @@ void closeConnections() {
 }
 
 int main() {
-    initializeFileTable();
-
     pthread_t clientThread, storageServerThread;
-
     // Initialize server sockets
     clientServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);

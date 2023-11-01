@@ -1,6 +1,15 @@
 #include "header_files.h"
 #include "storage_server.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <signal.h>
 
+#define PATH_BUFFER_SIZE 1024
 int socketID; //socketID for the server
 
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
@@ -295,26 +304,26 @@ void deleteDirectory(const char* path, int clientSocketID)
 }
 
 // Copy files between 2 servers - copyFilesender()*/                -------------------------- implement later
-int copyFile_sender(const char *sourcePath, struct sockaddr_in server_address) {
-    int serverSocket;
-    if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-        perror("Error connecting to server");
-        return 1;
-    }
-    sendFile_server_to_client(sourcePath, serverSocket);
-    return 0;
-}
+// int copyFile_sender(const char *sourcePath, struct sockaddr_in server_address) {
+//     int serverSocket;
+//     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
+//         perror("Error connecting to server");
+//         return 1;
+//     }
+//     sendFile_server_to_client(sourcePath, serverSocket);
+//     return 0;
+// }
 
-// Copy files between 2 servers - copyFileReceiver()*/                -------------------------- implement later
-int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
-    int serverSocket;
-    if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-        perror("Error connecting to server");
-        return 1;
-    }
-    uploadFile_client_to_server(destinationPath, serverSocket);
-    return 0;
-}
+// // Copy files between 2 servers - copyFileReceiver()*/                -------------------------- implement later
+// int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
+//     int serverSocket;
+//     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
+//         perror("Error connecting to server");
+//         return 1;
+//     }
+//     uploadFile_client_to_server(destinationPath, serverSocket);
+//     return 0;
+// }
 
 /* Function to rename file */
 int renameFile(const char *oldFileName, const char *newFileName, int clientSocketID) {
@@ -376,82 +385,141 @@ int renameFile(const char *oldFileName, const char *newFileName, int clientSocke
 //     closedir(dir);
 // }
 
-int main(int argc, char* argv[])
-{   
+int clientSocket[MAX_CLIENT_CONNECTIONS];
+char filename[50]="paths_SS.txt";
+// Function to collect accessible paths from the user and store them in a file
+void collectAccessiblePaths() {
+    char path[PATH_BUFFER_SIZE];
+    FILE *file = fopen(filename, "a"); // Open the file in append mode
+    if (file == NULL) {
+        perror("Error opening paths_SS.txt");
+        return;
+    }
+    while (1) {
+        printf("Enter an accessible path (or 'exit' to stop): ");
+        fgets(path, sizeof(path), stdin);
+        if (strcmp(path, "exit\n") == 0) {
+            break;
+        }
+        fprintf(file, "%s", path); // Write the path to the file
+    }
+
+    fclose(file);
+}
+int namingServerNumber;
+// Function to send vital information to the Naming Server and receive a number
+int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
+    struct sockaddr_in nsAddress;
+    int nsSocket;
+
+    // Create a socket for communication with the Naming Server
+    if ((nsSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Error: opening socket for Naming Server");
+        return -1;
+    }
+    memset(&nsAddress, 0, sizeof(nsAddress));
+    nsAddress.sin_family = AF_INET;
+    nsAddress.sin_port = htons(9090);
+    nsAddress.sin_addr.s_addr = inet_addr(nsIP);
+    // Connect to the Naming Server
+    if (connect(nsSocket, (struct sockaddr*)&nsAddress, sizeof(nsAddress)) < 0) {
+        perror("Error: connecting to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
+    // Prepare the information to send
+    char infoBuffer1[PATH_BUFFER_SIZE];
+    snprintf(infoBuffer1, sizeof(infoBuffer1), "SENDING STORAGE SERVER INFORMATION");
+    
+    // Send the information to the Naming Server
+    if (send(nsSocket, infoBuffer1, strlen(infoBuffer1), 0) < 0) {
+        perror("Error: sending information to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
+    char infoBuffer[PATH_BUFFER_SIZE];
+    snprintf(infoBuffer, sizeof(infoBuffer), "%s:%d:%d", nsIP, nsPort, clientPort);
+
+    // Send the information to the Naming Server
+    if (send(nsSocket, infoBuffer, strlen(infoBuffer), 0) < 0) {
+        perror("Error: sending information to Naming Server");
+        //close(nsSocket);
+        return -1;
+    }
+
+    // Open the file for reading
+    FILE* pathFile = fopen(filename, "r");
+    if (pathFile == NULL) {
+        perror("Error opening path file");
+        //close(nsSocket);
+        return -1;
+    }
+    // Read and send each path
+    char path[PATH_BUFFER_SIZE];
+    while (fgets(path, sizeof(path), pathFile) != NULL) {
+        if (send(nsSocket, path, strlen(path), 0) < 0) {
+            perror("Error: sending path to Naming Server");
+            fclose(pathFile);
+            //close(nsSocket);
+            return -1;
+        }
+    }
+
+    // Send a "completed" message
+    const char* completedMessage = "COMPLETED";
+    if (send(nsSocket, completedMessage, strlen(completedMessage), 0) < 0) {
+        perror("Error: sending completed message to Naming Server");
+        fclose(pathFile);
+        //close(nsSocket);
+        return -1;
+    }
+
+    // Close the file and the socket
+    fclose(pathFile);
+    //close(nsSocket);
+
+    // Receive a number from the Naming Server
+    char responseBuffer[PATH_BUFFER_SIZE];
+    if (recv(nsSocket, responseBuffer, sizeof(responseBuffer), 0) < 0) {
+        perror("Error: receiving number from Naming Server");
+        return -1;
+    }
+    namingServerNumber = atoi(responseBuffer);
+
+    return namingServerNumber;
+}
+int main(int argc, char* argv[]) {
     // Signal handler for Ctrl+C and Ctrl+Z
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
-
-    // Checking if the port number is provided
-    if(argc!=2){
-        printf("Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
-
+    // Ask the user for the Naming Server's IP and port
+    char nsIP[16]; // Assuming IPv4
+    int nsPort;
+    printf("Enter the IP address of the Naming Server: ");
+    scanf("%s", nsIP);
+    printf("Enter the port to talk with the Naming Server: ");
+    scanf("%d", &nsPort);
+    // Ask the user for the client communication port
+    int clientPort;
+    printf("Enter the port to talk with the Client: ");
+    scanf("%d", &clientPort);
     // Creating a socket
-    int PORT = atoi(argv[1]);
-    if((socketID = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-        perror("Error: opening socket\n");
-        exit(1);
+    // Collect accessible paths from the user and store in a file
+    collectAccessiblePaths();
+    // Send vital information to the Naming Server and receive a number
+    int ServerNumber = sendInfoToNamingServer(nsIP, nsPort, clientPort);
+    if (ServerNumber == -1) {
+        printf("Failed to send information to the Naming Server.\n");
+    } else {
+        snprintf(filename, sizeof(filename), "path_SS%d.txt", ServerNumber);
+        rename("path_SS.txt",filename);
+        printf("Received Naming Server number: %d\n", ServerNumber);
     }
 
-    // Creating a server and client address structure
-    struct sockaddr_in serverAddress, nameServerAddress;
-    int addrlen = sizeof(serverAddress);
-    memset(&serverAddress, 0, sizeof(serverAddress));
-    memset(&nameServerAddress, 0, sizeof(nameServerAddress));
-
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddress.sin_port = htons(PORT);
-
-    // Binding the socket to the server address
-    if(bind(socketID, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
-        perror("Error: binding socket\n");
-        exit(1);
-    }
-    printf("Storage Server has successfully started on port %d\n", PORT);
-
-    // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
-
-    // Listening for clients
-    if(listen(socketID, MAX_CLIENT_CONNECTIONS)<0){
-        perror("Listen failed");
-        exit(EXIT_FAILURE);
-    }
-
-
-    // Initializing empty sockets and clientAddresses for clients
-    int clientSocket[MAX_CLIENT_CONNECTIONS];
-    struct sockaddr_in clientAddress[MAX_CLIENT_CONNECTIONS];
-    int client_socket_count = 0;
-    
-    for(int j=0; j<MAX_CLIENT_CONNECTIONS; j++)
-        memset(&clientAddress[j], 0, sizeof(clientAddress[j]));
-
-
-    // Accepting connections from clients
-    while(1){
-            if ((clientSocket[client_socket_count] = accept(socketID, (struct sockaddr*)&clientAddress[client_socket_count], (socklen_t*)&addrlen)) < 0) {
-            perror("Accept failed");
-            exit(EXIT_FAILURE);
-        }
-        else{
-            client_socket_count++;
-            printf("New connection..\n");
-            //sendFile_server_to_client("temp.txt", clientSocket[client_socket_count-1]);
-            //deleteFile("temp.txt", clientSocket[client_socket_count-1]);
-            deleteDirectory("temp", clientSocket[client_socket_count-1]);
-        }
-
-        
-
-    }
-
-    // Closing the socket
-    if(close(socketID) < 0){
-        perror("Error: closing socket\n");
-        exit(1);
-    }
+    // Close the socket
+    // if (close(socketID) < 0) {
+    //     perror("Error: closing socket\n");
+    //     exit(1);
+    // }
     return 0;
 }
