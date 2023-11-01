@@ -491,7 +491,7 @@ int initStorageServer(int ss_id) {
 void handleStorageServerQueries() {
     struct sockaddr_in server_addr, new_addr;
     socklen_t addr_size;
-    char buffer[1024];
+    char buffer[10000];
     int bytesReceived;
     int receivingInfo = 0; // State variable
     int pathIndex=-2;
@@ -502,7 +502,7 @@ void handleStorageServerQueries() {
         int new_socket = accept(storageServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a storage server connection
         // Handle storage server queries here
         while (1) {
-            bytesReceived = recv(new_socket, buffer, 1024, 0);
+            bytesReceived = recv(new_socket, buffer, 10000, 0);
             if (bytesReceived < 0) {
                 perror("Error in receiving data");
                 exit(1);
@@ -545,7 +545,7 @@ void handleStorageServerQueries() {
             else{
                     if (pathIndex >= 0 && pathIndex < 300) {
                         strcpy(storageServerList->accessible_paths[pathIndex++], token);
-                        printf("naming server storage:%s",storageServerList->accessible_paths[pathIndex-1]);
+                        //printf("naming server storage:%s",storageServerList->accessible_paths[pathIndex-1]);
                     }
             }
             token = strtok(NULL, ":");
@@ -554,7 +554,7 @@ void handleStorageServerQueries() {
             break;
         }
         }
-        printf("hello");
+        //printf("hello");
         //close(new_socket);
     }
 

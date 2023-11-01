@@ -8,10 +8,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
-
+#include <pthread.h>
 #define PATH_BUFFER_SIZE 1024
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int socketID; //socketID for the server
-
+int NameServerSocket;
+int ClientSocket;
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
 void handle_signal(int signum) {
     close(socketID);
@@ -24,6 +26,50 @@ void closeSocket(){
     exit(1);
 }
 
+void *receiveDataOnClientPort(void *arg) {
+    int clientSocket = *(int *)arg;
+    char buffer[1024];
+    ssize_t bytesRead;
+
+    while (bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0) > 0) {
+        // Lock the mutex to ensure atomic access to shared resources
+        pthread_mutex_lock(&mutex);
+        
+        if (strcmp(buffer, "READ OPERATION INITIATED") == 0) {
+            // If received data is equal to "READ OPERATION INITIATED," call the function
+            bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+            buffer[bytesRead]='\0';
+            sendFile_server_to_client(buffer, clientSocket);
+        }
+        // Unlock the mutex when done
+        pthread_mutex_unlock(&mutex);
+    }
+
+    if (bytesRead < 0) {
+        perror("Error receiving data on client port");
+    }
+}
+
+void *receiveDataOnNameServerPort(void *arg) {
+    int nameServerSocket = *(int *)arg;
+    char buffer[1024];
+    ssize_t bytesRead;
+
+    while (bytesRead = recv(nameServerSocket, buffer, sizeof(buffer), 0) > 0) {
+        // Lock the mutex to ensure atomic access to shared resources
+        pthread_mutex_lock(&mutex);
+
+        // Process the received data as needed
+        // You can implement your data processing logic here
+
+        // Unlock the mutex when done
+        pthread_mutex_unlock(&mutex);
+    }
+
+    if (bytesRead < 0) {
+        perror("Error receiving data on Naming Server port");
+    }
+}
 /* Create a file - createFile() */
 void createFile(Directory *parent, const char *filename, int ownerID)
 {
@@ -559,12 +605,32 @@ int main(int argc, char* argv[]) {
         printf("Failed to send information to the Naming Server.\n");
     } else {
         snprintf(filename, sizeof(filename), "path_SS%d.txt", ServerNumber);
-        rename("path_SS.txt",filename);
-        printf("Received Naming Server number: %d\n", ServerNumber);
+        if (rename("path_SS.txt",filename) == 0) {
+        printf("File renamed successfully.\n");
+        } else {
+            perror("Error renaming the file");
+        }
+        printf("Received Naming Server number: %d %s\n", ServerNumber,filename);
     }
-    while(1){
-        ;
+    NameServerSocket=talkToStorageServer(nsIP,nsPort);
+    ClientSocket=talkToStorageServer(nsIP,clientPort);
+    pthread_t clientThread, nameServerThread;
+    printf("READY TO RECEIVE CLIENT REQUESTS AND NAMING SERVER REQUESTS\n");
+    if (pthread_create(&clientThread, NULL, receiveDataOnClientPort, &ClientSocket) != 0) {
+        perror("Error creating client thread");
+        return 1;
     }
+
+    if (pthread_create(&nameServerThread, NULL, receiveDataOnNameServerPort, &NameServerSocket) != 0) {
+        perror("Error creating Naming Server thread");
+        return 1;
+    }
+    // Wait for the threads to finish
+    pthread_join(clientThread, NULL);
+    pthread_join(nameServerThread, NULL);
+
+    // Destroy the mutex
+    pthread_mutex_destroy(&mutex);
     // Close the socket
     // if (close(socketID) < 0) {
     //     perror("Error: closing socket\n");

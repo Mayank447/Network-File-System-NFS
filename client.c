@@ -57,45 +57,31 @@ int main() {
             perror("Socket creation failed");
             exit(EXIT_FAILURE);
         }
+        int new_server_port1=atoi(new_server_port);
         new_server_address.sin_family = AF_INET;
-        new_server_address.sin_port = htons(new_server_port);
+        new_server_address.sin_port = htons(new_server_port1);
         if (inet_pton(AF_INET, new_server_ip, &new_server_address.sin_addr) <= 0) {
             perror("Invalid address/Address not supported");
             exit(EXIT_FAILURE);
         }
-        if (connect(new_client_socket, (struct sockaddr*)&new_server_address, sizeof(new_server_address) < 0)) {
+        if (connect(new_client_socket, (struct sockaddr*)&new_server_address, sizeof(new_server_address)) < 0) {
             perror("Connection to new server failed");
             exit(EXIT_FAILURE);
         }
-        // Receive and save the file content
-        char local_file_name[256];
-        char *filename = strrchr(file_path, '/');
-        if (filename != NULL) {
-            // If there's a '/' character in the path, use the portion after the last '/'
-            filename++;  // Move past the '/'
-        } else {
-            // If there's no '/' character in the path, use the entire path as the filename
-            filename = file_path;
+        const char* completedMessage = "READ OPERATION INITIATED";
+        if (send(new_client_socket, completedMessage, strlen(completedMessage), 0) < 0) {
+        perror("Error: sending completed message to Naming Server");
+        close(new_client_socket);
+        return -1;
         }
-        snprintf(local_file_name, sizeof(local_file_name), "./%s", filename);
-        FILE *local_file = fopen(local_file_name, "wb");
-        if (local_file == NULL) {
-            perror("Error opening local file for writing");
-            exit(EXIT_FAILURE);
-        }
-        while (1) {
-            int bytes_received = recv(new_client_socket, buffer, BUFFER_SIZE, 0);
-            if (bytes_received <= 0) {
-                break;
-            }
-            // Check if the received data contains "STOP" and break if it does
-            if (strstr(buffer, "STOP") != NULL) {
-                break;
-            }
-            fwrite(buffer, 1, bytes_received, local_file);
-        }
-        printf("File received and saved as %s in the current directory.\n");
-        fclose(local_file);
+        send(new_client_socket, file_path, strlen(file_path), 0);
+        char buffer[1024]; // Adjust the buffer size as needed
+        ssize_t bytes_received;
+        while ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) > 0) {
+        // Print the received data
+        write(STDOUT_FILENO, buffer, bytes_received);
+    }
+        // Receive the content from the socket and print it on the terminal
         close(new_client_socket);
         // Closing Storage server
     } else if (operation == 2) {
