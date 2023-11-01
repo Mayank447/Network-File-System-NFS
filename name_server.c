@@ -214,6 +214,127 @@ pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
 // Sockets for clients and storage servers
 int clientServerSocket, storageServerSocket;
 
+#define HASH_TABLE_SIZE 1000
+
+// Define a struct for key-value pairs
+struct KeyValue {
+    char* key;
+    int value;
+    struct KeyValue* next;
+    struct KeyValue* prev; // For LRU
+};
+
+// Define the hashmap structure
+struct LRU_HashMap {
+    struct KeyValue* table[HASH_TABLE_SIZE];
+    struct KeyValue* lru_head; // LRU head
+    struct KeyValue* lru_tail; // LRU tail
+    int size;
+};
+
+// Hash function
+int hash(char* key) {
+    int hash = 0;
+    for (int i = 0; key[i]; i++) {
+        hash = (hash * 31 + key[i]) % HASH_TABLE_SIZE;
+    }
+    return hash;
+}
+
+// Create a new hashmap
+struct LRU_HashMap* createHashMap() {
+    struct LRU_HashMap* map = (struct LRU_HashMap*)malloc(sizeof(struct LRU_HashMap));
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        map->table[i] = NULL;
+    }
+    map->lru_head = NULL;
+    map->lru_tail = NULL;
+    map->size = 0;
+    return map;
+}
+
+// Insert a key-value pair into the hashmap, enforcing a capacity of 20
+void insert(struct LRU_HashMap* map, char* key, int value) {
+    int index = hash(key);
+    struct KeyValue* newNode = (struct KeyValue*)malloc(sizeof(struct KeyValue));
+    newNode->key = strdup(key);
+    newNode->value = value;
+    newNode->next = map->table[index];
+    map->table[index] = newNode;
+
+    // Update LRU list
+    if (map->lru_head == NULL) {
+        map->lru_head = newNode;
+        map->lru_tail = newNode;
+    } else {
+        newNode->prev = map->lru_tail;
+        map->lru_tail->next = newNode;
+        map->lru_tail = newNode;
+    }
+
+    // Check and remove the least recently used item if the cache exceeds the capacity
+    if (map->size >= 20) {
+        // Remove the least recently used item from the cache
+        struct KeyValue* lruItem = map->lru_head;
+
+        // Update the LRU head
+        map->lru_head = lruItem->next;
+        if (map->lru_head != NULL) {
+            map->lru_head->prev = NULL;
+        }
+
+        // Remove the item from the hash table
+        int lruIndex = hash(lruItem->key);
+        struct KeyValue* current = map->table[lruIndex];
+        struct KeyValue* prev = NULL;
+
+        while (current != NULL) {
+            if (strcmp(current->key, lruItem->key) == 0) {
+                if (prev == NULL) {
+                    map->table[lruIndex] = current->next;
+                } else {
+                    prev->next = current->next;
+                }
+                free(lruItem->key);
+                free(lruItem);
+                break;
+            }
+            prev = current;
+            current = current->next;
+        }
+    } else {
+        // Increment the cache size
+        map->size++;
+    }
+}
+
+// Search for a key in the hashmap and return its value
+int get(struct LRU_HashMap* map, char* key) {
+    int index = hash(key);
+    struct KeyValue* current = map->table[index];
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            // Update LRU list (move to the tail)
+            if (current != map->lru_tail) {
+                if (current == map->lru_head) {
+                    map->lru_head = current->next;
+                    map->lru_head->prev = NULL;
+                } else {
+                    current->prev->next = current->next;
+                    current->next->prev = current->prev;
+                }
+                current->prev = map->lru_tail;
+                map->lru_tail->next = current;
+                map->lru_tail = current;
+                current->next = NULL;
+            }
+            return current->value;
+        }
+        current = current->next;
+    }
+    return -1; // Key not found
+}
+
 // Function to search for a path in storage servers
 int searchStorageServer(const char* file_path, struct StorageServerInfo* ss) {
     int found = 0;
