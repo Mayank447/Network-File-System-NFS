@@ -469,7 +469,11 @@ int talkToStorageServer(const char* storageServerIP, int storageServerPort) {
     storageServerAddr.sin_family = AF_INET;
     storageServerAddr.sin_port = htons(storageServerPort);
     storageServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
+    if (bind(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) == -1) {
+        perror("Bind failed");
+        close(storageServerSocket);
+        exit(1);
+    }
     // Connect to the Storage Server
     if (connect(storageServerSocket, (struct sockaddr*)&storageServerAddr, sizeof(storageServerAddr)) < 0) {
         perror("Error: connecting to Storage Server");
@@ -540,7 +544,7 @@ int sendInfoToNamingServer(const char* nsIP, int nsPort, int clientPort) {
     // Read and send each path
     char path[PATH_BUFFER_SIZE];
     while (fgets(path, sizeof(path), pathFile) != NULL) {
-        printf("path :%s",path);
+        //printf("path :%s",path);
         if (send(nsSocket, path, strlen(path), 0) < 0) {
             perror("Error: sending path to Naming Server");
             fclose(pathFile);

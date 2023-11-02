@@ -12,7 +12,7 @@ int main() {
     struct sockaddr_in server_address;
     char buffer[BUFFER_SIZE];
     char new_server_ip[256];
-    int new_server_port;
+    char new_server_port[10];
 
     // Creating socket file descriptor
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
