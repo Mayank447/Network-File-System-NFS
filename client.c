@@ -41,49 +41,60 @@ int main() {
     scanf("%d", &operation);
 
     if (operation == 1) {
-        // Perform read operation
-        printf("Enter the file path to read: ");
-        char file_path[256];
-        scanf("%s", file_path);
-        // Send the file path to the server
-        send(client_socket, file_path, strlen(file_path), 0);
-        // Receive the new server IP address and port number
-        recv(client_socket, new_server_ip, sizeof(new_server_ip), 0);
-        recv(client_socket, &new_server_port, sizeof(new_server_port), 0);
-        // Create a new socket and connect to the new server address
-        int new_client_socket;
-        struct sockaddr_in new_server_address;
-        if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-            perror("Socket creation failed");
-            exit(EXIT_FAILURE);
-        }
-        int new_server_port1=atoi(new_server_port);
-        new_server_address.sin_family = AF_INET;
-        new_server_address.sin_port = htons(new_server_port1);
-        if (inet_pton(AF_INET, new_server_ip, &new_server_address.sin_addr) <= 0) {
-            perror("Invalid address/Address not supported");
-            exit(EXIT_FAILURE);
-        }
-        if (connect(new_client_socket, (struct sockaddr*)&new_server_address, sizeof(new_server_address)) < 0) {
-            perror("Connection to new server failed");
-            exit(EXIT_FAILURE);
-        }
-        const char* completedMessage = "READ OPERATION INITIATED";
-        if (send(new_client_socket, completedMessage, strlen(completedMessage), 0) < 0) {
+    // Perform read operation
+    printf("Enter the file path to read: ");
+    char file_path[256];
+    scanf("%s", file_path);
+
+    // Send the file path to the naming server
+    send(client_socket, file_path, strlen(file_path), 0);
+
+    // Receive IP address and port of the storage server (SS) from the naming server
+    recv(client_socket, new_server_ip, sizeof(new_server_ip), 0);
+    recv(client_socket, new_server_port, sizeof(new_server_port), 0);
+
+    // Create a new socket and connect to the storage server (SS)
+    int new_client_socket;
+    struct sockaddr_in new_server_address;
+    if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int new_server_port1 = atoi(new_server_port);
+    new_server_address.sin_family = AF_INET;
+    new_server_address.sin_port = htons(new_server_port1);
+    if (inet_pton(AF_INET, new_server_ip, &new_server_address.sin_addr) <= 0) {
+        perror("Invalid address/Address not supported");
+        exit(EXIT_FAILURE);
+    }
+
+    if (connect(new_client_socket, (struct sockaddr*)&new_server_address, sizeof(new_server_address)) < 0) {
+        perror("Connection to the new server failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Signal the storage server that the READ OPERATION is initiated
+    const char* completedMessage = "READ OPERATION INITIATED";
+    if (send(new_client_socket, completedMessage, strlen(completedMessage), 0) < 0) {
         perror("Error: sending completed message to Naming Server");
         close(new_client_socket);
         return -1;
-        }
-        send(new_client_socket, file_path, strlen(file_path), 0);
-        char buffer[1024]; // Adjust the buffer size as needed
-        ssize_t bytes_received;
-        while ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) > 0) {
+    }
+
+    // Send the file path to the storage server (SS)
+    send(new_client_socket, file_path, strlen(file_path), 0);
+
+    // Receive and print file content from the storage server (SS)
+    char buffer[1024]; // Adjust the buffer size as needed
+    ssize_t bytes_received;
+    while ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0) > 0)) {
         // Print the received data
         write(STDOUT_FILENO, buffer, bytes_received);
     }
-        // Receive the content from the socket and print it on the terminal
-        close(new_client_socket);
-        // Closing Storage server
+
+    // Close the connection to the storage server (SS)
+    close(new_client_socket);
     } else if (operation == 2) {
         // Perform write operation
         printf("Enter the file path to write: ");
@@ -100,8 +111,10 @@ int main() {
             perror("Socket creation failed");
             exit(EXIT_FAILURE);
         }
-        new_server_address.sin_family = AF_INET;
-        new_server_address.sin_port = htons(new_server_port);
+        new_server_address.sin_family = AF_INET;;
+        int new_server_port1 = atoi(new_server_port);
+        new_server_address.sin_port = htons((uint16_t)new_server_port1);
+
         if (inet_pton(AF_INET, new_server_ip, &new_server_address.sin_addr) <= 0) {
             perror("Invalid address/Address not supported");
             exit(EXIT_FAILURE);
