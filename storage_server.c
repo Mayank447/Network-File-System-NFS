@@ -75,7 +75,6 @@ void *receiveDataOnNameServerPort(void *arg)
 
         // Process the received data as needed
         // You can implement your data processing logic here
-
         // Unlock the mutex when done
         pthread_mutex_unlock(&mutex);
     }
@@ -94,11 +93,9 @@ void createFile(Directory *parent, const char *filename, int ownerID)
         printf("createFile: malloc failed\n");
         return;
     }
-
     strcpy(newFile->name, filename);
     strcpy(newFile->path, parent->path);
     strcat(newFile->path, filename);
-
     /*initialize meta data*/
     newFile->size = 0;
     newFile->nextfile = NULL;
@@ -121,7 +118,6 @@ void createDir(Directory *parent, const char *dirname)
         printf("createDir: malloc failed\n");
         return;
     }
-
     strcpy(newDir->name, dirname);
     newDir->file_count = 0;
     newDir->subdir_count = 0;
@@ -272,7 +268,6 @@ void uploadFile_client_to_server(char *filename, int clientSocketID)
         }
         return;
     }
-
     char buffer[RECEIVE_BUFFER_LENGTH];
     int bytesReceived;
 
@@ -331,7 +326,6 @@ void deleteDirectory(const char *path, int clientSocketID)
     DIR *dir;
     struct stat stat_path, stat_entry;
     struct dirent *entry;
-
     // stat for the path
     stat(path, &stat_path);
 
@@ -390,7 +384,6 @@ void deleteDirectory(const char *path, int clientSocketID)
             }
         }
     }
-
     closedir(dir);
 
     // Remove the empty directory after deleting its contents
@@ -416,7 +409,6 @@ void deleteDirectory(const char *path, int clientSocketID)
 //     sendFile_server_to_client(sourcePath, serverSocket);
 //     return 0;
 // }
-
 // // Copy files between 2 servers - copyFileReceiver()*/                -------------------------- implement later
 // int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
 //     int serverSocket;
@@ -456,29 +448,23 @@ int renameFile(const char *oldFileName, const char *newFileName, int clientSocke
         return -1; // Failed to rename the file
     }
 }
-
 // /*Function to copy directories copyDirectory()*/     -------------------------- implement later
 // void copyDirectory(const char *sourceDir, const char *destinationDir) {
 //     struct dirent *entry;
 //     struct stat statInfo;
 //     char sourcePath[MAX_PATH_LENGTH], destinationPath[MAX_PATH_LENGTH];
-
 //     // Open source directory
 //     DIR *dir = opendir(sourceDir);
-
 //     if (dir == NULL) {
 //         perror("Unable to open source directory");
 //         return;
 //     }
-
 //     // Create destination directory
 //     mkdir(destinationDir, 0777);
-
 //     while ((entry = readdir(dir))) {
 //         if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
 //             sprintf(sourcePath, "%s/%s", sourceDir, entry->d_name);
 //             sprintf(destinationPath, "%s/%s", destinationDir, entry->d_name);
-
 //             if (stat(sourcePath, &statInfo) == 0) {
 //                 if (S_ISDIR(statInfo.st_mode)) {
 //                     // Recursively copy subdirectories
@@ -490,7 +476,6 @@ int renameFile(const char *oldFileName, const char *newFileName, int clientSocke
 //             }
 //         }
 //     }
-
 //     closedir(dir);
 // }
 
@@ -516,7 +501,6 @@ void collectAccessiblePaths()
         }
         fprintf(file, "%s", path); // Write the path to the file
     }
-
     fclose(file);
 }
 
@@ -531,7 +515,6 @@ int talkToStorageServer(const char *storageServerIP, int storageServerPort)
         perror("Error: opening socket for Storage Server");
         return -1;
     }
-
     memset(&storageServerAddr, 0, sizeof(storageServerAddr));
     storageServerAddr.sin_family = AF_INET;
     storageServerAddr.sin_port = htons(storageServerPort);
