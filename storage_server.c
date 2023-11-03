@@ -52,15 +52,34 @@ void receiveDataOnClientPort(int newSocket)
         printf("1 2ndbuffer:%s\n", buffer1);
         sendFile_server_to_client(buffer1, newSocket);
     }
+    if(buffer == 2){
+        char buffer1[10000]={'\0'};
+        printf("2 1stbuffer:%d\n", buffer);
+        // If received data is equal to "READ OPERATION INITIATED," call the function
+        if (bytesRead1 = recv(newSocket, buffer1, sizeof(buffer1), 0) < 0)
+        {
+            perror("receive error");
+            exit(0);
+        }
+        //buffer1[bytesRead1] = '\0';
+        printf("2 2ndbuffer:%s\n", buffer1);
+        int status = uploadFile_client_to_server(buffer1, newSocket);
+
+        if(status == -1)
+        {
+            perror("Error accessing file");
+        }
+    }
     else
     {
         printf("not in\n");
     }
-    if (bytesRead < 0)
-    {
-        perror("Error receiving data on client port");
+
+    if (bytesRead < 0){
+    perror("Error receiving data on client port");
     }
 }
+
 
 void *receiveDataOnNameServerPort(void *arg)
 {
@@ -254,41 +273,38 @@ void sendFile_server_to_client(char *filename, int clientSocketID)
 }
 
 /* Upload a file from client to server - uploadFile()*/
-void uploadFile_client_to_server(char *filename, int clientSocketID)
+int uploadFile_client_to_server(char *filename, int clientSocketID)
 {
     // Open the file for reading on the server side
-    int file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    if (file == -1)
-    {
-        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
-        sprintf(ErrorMsg, "File not found.");
-        if (send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0)
-        {
-            perror("Failed to send file not found error");
-        }
-        return;
+    FILE * file = fopen(filename, "a");
+    if (file == NULL) {
+        printf("Error file not found.\n");
+        return -1;
     }
-    char buffer[RECEIVE_BUFFER_LENGTH];
+
+    char buffer[10000];
     int bytesReceived;
 
-    // Receive and write the file content
-    while ((bytesReceived = recv(clientSocketID, buffer, sizeof(buffer), 0)) > 0)
+    while(1)
     {
-        if (write(file, buffer, bytesReceived) < 0)
-        {
-            perror("Error writing to file");
-            close(file);
-            return;
+        if((bytesReceived = recv(clientSocketID, buffer, sizeof(buffer), 0)) < 0){
+        perror("Recieve error");
+        return -1;
+        }
+
+        if(strcmp(buffer, "STOP") == 0){
+            break;
+        }
+
+        if (fprintf(file, "%s", buffer) < 0) {
+        printf("Error writing to the file.\n");
+        return -1;
         }
     }
 
-    if (bytesReceived < 0)
-    {
-        perror("Error receiving file data");
-    }
-
-    close(file);
-    printf("File %s received successfully.\n", filename);
+    fclose(file);
+    printf("File %s updated successfully.\n", filename);
+    return 0;
 }
 
 /* Delete a file - deleteFile() */

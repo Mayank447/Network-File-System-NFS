@@ -141,47 +141,120 @@ int main()
         // Receive the content from the socket and print it on the terminal
         close(new_client_socket);
     }
-    // Closing Storage server
-    // } else if (operation == 2) {
-    //     // Perform write operation
-    //     printf("Enter the file path to write: ");
-    //     char file_path[256];
-    //     scanf("%s", file_path);
-    //     send(client_socket, file_path, strlen(file_path), 0);
-    //     // Receive the new server IP address and port number
-    //     recv(client_socket, new_server_ip, sizeof(new_server_ip), 0);
-    //     recv(client_socket, &new_server_port, sizeof(new_server_port), 0);
-    //     // Create a new socket and connect to the new server address
-    //     int new_client_socket;
-    //     struct sockaddr_in new_server_address;
-    //     if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-    //         perror("Socket creation failed");
-    //         exit(EXIT_FAILURE);
-    //     }
-    //     new_server_address.sin_family = AF_INET;
-    //     new_server_address.sin_port = htons(new_server_port);
-    //     if (inet_pton(AF_INET, new_server_ip, &new_server_address.sin_addr) <= 0) {
-    //         perror("Invalid address/Address not supported");
-    //         exit(EXIT_FAILURE);
-    //     }
-    //     if (connect(new_client_socket, (struct sockaddr*)&new_server_address, sizeof(new_server_address) < 0)) {
-    //         perror("Connection to new server failed");
-    //         exit(EXIT_FAILURE);
-    //     }
+    //Closing Storage server
+    else if (operation == 2) {
+        int o=1;
 
-    //     // Additional operation for the Write to the file option
-    //     printf("Enter data to write (type 'STOP' to end): \n");
-    //     while (1) {
-    //         char input_data[256];
-    //         fgets(input_data, sizeof(input_data), stdin);
-    //         send(new_client_socket, input_data, strlen(input_data), 0);
-    //         if (strstr(input_data, "STOP") != NULL) {
-    //             break;
-    //         }
-    //     }
-    //     printf("Data sent to the server.\n");
+        // Perform read operation
+        printf("Enter the file path to write: \n");
 
-    //     close(new_client_socket);
+        char file_path[256];
+        scanf("%s",file_path);
+
+        if (send(client_socket, &o, sizeof(o), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+
+        // Send the file path to the naming server
+        if(send(client_socket, file_path, strlen(file_path), 0) < 0)
+        {
+            perror("Error: sending file path to Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+        
+        // Receive IP address and port of the storage server (SS) from the naming server
+        char store[1024]={'\0'};
+        if(recv(client_socket, store, sizeof(store), 0) < 0)
+        {
+            perror("Error: receiving new server IP and Port from Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+
+        printf("%s\n",store);
+
+        // parse the ip address port number with delimiter a :
+        parseIpPort(store, new_server_ip, &new_server_port);
+
+        int new_client_socket;
+        struct sockaddr_in new_server_address;
+        if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        {
+            perror("Socket creation failed");
+            exit(EXIT_FAILURE);
+        }
+
+        new_server_address.sin_family = AF_INET;
+        new_server_address.sin_port = htons(new_server_port); // new_server_port1);new_server_ip
+        new_server_address.sin_addr.s_addr = INADDR_ANY;
+        if (inet_pton(AF_INET, "127.0.0.1", &new_server_address.sin_addr) < 0)
+        {
+            perror("Invalid address/Address not supported");
+            exit(EXIT_FAILURE);
+        }
+        if (connect(new_client_socket, (struct sockaddr *)&new_server_address, sizeof(new_server_address)) < 0)
+        {
+            perror("Connection to new server failed");
+            exit(EXIT_FAILURE);
+        }
+
+        int a=2;
+
+        if (send(new_client_socket, &a, sizeof(a), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(new_client_socket);
+            return -1;
+        }
+
+        if (send(new_client_socket, file_path, strlen(file_path), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(new_client_socket);
+            return -1;
+        }
+
+        char buffer[1024]={'\0'}; // Adjust the buffer size as needed
+        ssize_t bytes_received;
+        printf("Enter data to add to file: \n");
+
+        char input_data[10000];
+
+        while(1)
+        {
+            scanf("%[^\n]s",input_data);
+
+            // send data to append to file
+            if(send(new_client_socket, input_data, strlen(input_data), 0) < 0)
+            {
+                perror("Send error");
+                close(new_client_socket);
+                exit(1);
+            }
+
+            if(strcmp(input_data, "STOP") == 0)
+            {
+                break;
+            }
+        }
+        
+        // Print the received data
+        if ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) < 0)
+        {
+            perror("Receive error");
+            close(new_client_socket);
+            exit(1);
+        }
+
+        printf("%s\n", buffer);
+        printf("ABOVE INFORMATION IS WRITTEN TO THE FILE\n");
+        // Receive the content from the socket and print it on the terminal
+        close(new_client_socket);
+        
     // } else if (operation == 3) {
     //     // Perform file information operation
     //     // Send the request for information to the server
@@ -202,4 +275,5 @@ int main()
     // Do not close client_socket here
     // close(client_socket);
     return 0;
-}
+
+    }}

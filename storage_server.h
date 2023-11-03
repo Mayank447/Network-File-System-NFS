@@ -68,7 +68,7 @@ char ErrorMsg[1024];
 
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
-void uploadFile_client_to_server(char* filename, int clientSocketID);
+int uploadFile_client_to_server(char* filename, int clientSocketID);
 void sendFile_server_to_client(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileAdditionalInfo(char* filename, int clientSocketID);
