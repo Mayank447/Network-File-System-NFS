@@ -15,6 +15,32 @@ void parseIpPort(const char *data, char *ip_address,int *cs_port)
     }
     return;
 }
+
+void parseMetadata(const char *data, char *filepath, int *size, int *permissions) {
+    char *token;
+    char copy[1024];
+    strcpy(copy, data); // Create a copy because strtok modifies the string
+
+    token = strtok(copy, ":");
+    if (token != NULL) {
+        strcpy(filepath, token);
+        token = strtok(NULL, ":");
+        if (token != NULL) {
+            *size = atoi(token);
+            token = strtok(NULL, ":");
+            if (token != NULL) {
+                *permissions = atoi(token);
+            } else {
+                printf("Error parsing permissions: %s\n", data);
+            }
+        } else {
+            printf("Error parsing size: %s\n", data);
+        }
+    } else {
+        printf("Error parsing filepath: %s\n", data);
+    }
+}
+
 int main()
 {
     int client_socket;
@@ -255,25 +281,110 @@ int main()
         // Receive the content from the socket and print it on the terminal
         close(new_client_socket);
         
-    // } else if (operation == 3) {
-    //     // Perform file information operation
-    //     // Send the request for information to the server
-    //     send(client_socket, "INFO", strlen("INFO"), 0);
+    } else if (operation == 3) {
+        // Perform file information operation
+        int o=1;
 
-    //     // Receive and print file size and access permissions
-    //     int file_size;
-    //     char permissions[10];
-    //     recv(client_socket, &file_size, sizeof(file_size), 0);
-    //     recv(client_socket, permissions, sizeof(permissions), 0);
+        // Perform read operation
+        printf("Enter the file to get info: \n");
 
-    //     printf("File Size: %d bytes\n", file_size);
-    //     printf("Access Permissions: %s\n", permissions);
-    // } else {
-    //     printf("Invalid operation choice.\n");
-    // }
+        char file_path[256];
+        scanf("%s",file_path);
+
+        if (send(client_socket, &o, sizeof(o), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+
+        // Send the file path to the naming server
+        if(send(client_socket, file_path, strlen(file_path), 0) < 0)
+        {
+            perror("Error: sending file path to Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+        
+        // Receive IP address and port of the storage server (SS) from the naming server
+        char store[1024]={'\0'};
+        if(recv(client_socket, store, sizeof(store), 0) < 0)
+        {
+            perror("Error: receiving new server IP and Port from Naming Server\n");
+            close(client_socket);
+            return -1;
+        }
+
+        printf("%s\n",store);
+
+        // parse the ip address port number with delimiter a :
+        parseIpPort(store, new_server_ip, &new_server_port);
+
+        int new_client_socket;
+        struct sockaddr_in new_server_address;
+        if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        {
+            perror("Socket creation failed");
+            exit(EXIT_FAILURE);
+        }
+
+        new_server_address.sin_family = AF_INET;
+        new_server_address.sin_port = htons(new_server_port); // new_server_port1);new_server_ip
+        new_server_address.sin_addr.s_addr = INADDR_ANY;
+        if (inet_pton(AF_INET, "127.0.0.1", &new_server_address.sin_addr) < 0)
+        {
+            perror("Invalid address/Address not supported");
+            exit(EXIT_FAILURE);
+        }
+        if (connect(new_client_socket, (struct sockaddr *)&new_server_address, sizeof(new_server_address)) < 0)
+        {
+            perror("Connection to new server failed");
+            exit(EXIT_FAILURE);
+        }
+
+        int a=3;
+
+        if (send(new_client_socket, &a, sizeof(a), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(new_client_socket);
+            return -1;
+        }
+
+        if (send(new_client_socket, file_path, strlen(file_path), 0) < 0)
+        {
+            perror("Error: sending completed message to Naming Server\n");
+            close(new_client_socket);
+            return -1;
+        }
+
+        char buffer[1024]={'\0'}; // Adjust the buffer size as needed
+        ssize_t bytes_received;
+        printf("File meta data: \n");
+        char  file_name[256];
+        int  file_size,  file_permissions;    
+
+        // Print the received data
+        if ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) < 0)
+        {
+            perror("Receive error");
+            close(new_client_socket);
+            exit(1);
+        }
+        printf("%s\n", buffer);
+        parseMetadata(buffer, file_name, &file_size, &file_permissions);
+        printf("file name:%s\n",file_name);
+        printf("file size:%d\n",file_size);
+        printf("file permission:%d\n",file_permissions);
+        printf("ABOVE INFORMATION IS META DATA OF THE FILE\n");
+        // Receive the content from the socket and print it on the terminal
+        close(new_client_socket);
+        
+    } else {
+        printf("Invalid operation choice.\n");
+    }
 
     // Do not close client_socket here
     // close(client_socket);
     return 0;
-
-    }}
+}

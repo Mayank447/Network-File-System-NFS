@@ -71,7 +71,7 @@ void createFile(Directory* parent, const char* filename, int ownerID);
 int uploadFile_client_to_server(char* filename, int clientSocketID);
 void sendFile_server_to_client(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
-void getFileAdditionalInfo(char* filename, int clientSocketID);
+void getFileMetaData(char* filename, int clientSocketID);
 int lockFile(File *file, int lock_type);
 void write_releaseLock(File *file, int clientID);
 void read_releaseLock(File *file);

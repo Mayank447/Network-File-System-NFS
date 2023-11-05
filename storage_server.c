@@ -12,6 +12,11 @@
 #define PATH_BUFFER_SIZE 1024
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int socketID; // socketID for the server
+
+//global pointers for beggining and last file in struct linked list
+File * head = NULL;
+File * tail = NULL;
+
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
 void handle_signal(int signum)
 {
@@ -52,7 +57,7 @@ void receiveDataOnClientPort(int newSocket)
         printf("1 2ndbuffer:%s\n", buffer1);
         sendFile_server_to_client(buffer1, newSocket);
     }
-    if(buffer == 2){
+    else if(buffer == 2){
         char buffer1[10000]={'\0'};
         printf("2 1stbuffer:%d\n", buffer);
         // If received data is equal to "READ OPERATION INITIATED," call the function
@@ -69,6 +74,19 @@ void receiveDataOnClientPort(int newSocket)
         {
             perror("Error accessing file");
         }
+    }
+    else if(buffer == 3){
+        char buffer1[10000]={'\0'};
+        printf("2 1stbuffer:%d\n", buffer);
+        // If received data is equal to "GET OPERATION INITIATED," call the function
+        if (bytesRead1 = recv(newSocket, buffer1, sizeof(buffer1), 0) < 0)
+        {
+            perror("receive error");
+            exit(0);
+        }
+        //buffer1[bytesRead1] = '\0';
+        printf("2 2ndbuffer:%s\n", buffer1);
+        getFileMetaData(buffer1, newSocket);
     }
     else
     {
@@ -115,15 +133,26 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     strcpy(newFile->name, filename);
     strcpy(newFile->path, parent->path);
     strcat(newFile->path, filename);
+    if(head == NULL)
+    {
+        head = newFile;
+    }
+    if(tail == NULL)
+    {
+        tail = newFile;
+    }
+
+    tail->nextfile = newFile;
+    tail = newFile;
+    newFile->nextfile = NULL;
     /*initialize meta data*/
     newFile->size = 0;
-    newFile->nextfile = NULL;
     newFile->ownerID = ownerID;
     newFile->reader_count = 0;
     newFile->write_client_id = 0;
     newFile->is_locked = 0;
     newFile->file_type = NULL;
-    newFile->file_permissions = 0;
+    newFile->file_permissions = 666;
     newFile->last_accessed = 0;
     newFile->last_modified = 0;
 }
@@ -221,7 +250,6 @@ void read_releaseLock(File *file)
 }
 
 /* Send a file to the client - getFile()*/
-
 void sendFile_server_to_client(char *filename, int clientSocketID)
 {
     printf("hai 1\n");
@@ -413,6 +441,34 @@ void deleteDirectory(const char *path, int clientSocketID)
             perror("Error sending message:");
         }
     }
+}
+
+/*Function to get Meta Data*/
+void getFileMetaData(char* filename, int clientSocketID) {
+
+    char* filepath = (char*)malloc(sizeof(filename));
+    strcpy(filepath, filename);
+
+    struct stat fileStat;
+
+   char buffer[10000];
+    int bytesReceived;
+        // Use the stat function to retrieve file metadata
+        if (stat(filepath, &fileStat) == 0) {
+            // Format file metadata into a single string
+            int n = snprintf(buffer, sizeof(buffer), "%s:%ld:%o\n", filepath, (long)fileStat.st_size, (unsigned int)(fileStat.st_mode & 0777));
+            
+            if (n < 0) {
+                perror("Error formatting file metadata");
+            }
+
+            // Send the formatted metadata
+            if (send(clientSocketID, buffer, n, 0) < 0) {
+                perror("Error sending file metadata");
+            }
+        } else {
+            perror("stat");
+        }
 }
 
 // Copy files between 2 servers - copyFilesender()*/                -------------------------- implement later
