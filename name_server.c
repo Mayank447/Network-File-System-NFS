@@ -1,5 +1,6 @@
 #include "header_files.h"
 #include "name_server.h"
+#include "helper_functions.h"
 
 #define CLIENT_PORT 8080 // Port no. for communication with the client
 #define STORAGE_SERVER_PORT 9090 // Port no. for communication with the storage server
@@ -7,19 +8,188 @@
 #define NO_CLIENTS_TO_LISTEN_TO 50 // Maximum no. of clients the name server can handle
 #define NO_SERVER_TO_LISTEN_TO 100 // Maximum no. of storage servers can initialize
 
+int clientServerSocket, storageServerSocket; // Sockets for handling storage server queries and client requests
+void closeConnections(){ // Function to close server and client connection sockets
+    close(clientServerSocket);
+    close(storageServerSocket);
+}
+
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
 void handle_signal(int signum) {
     closeConnections();
     exit(signum);
 }
 
-/* Function to close server and client connection sockets */
-void closeConnections(){
-    close(clientServerSocket);
-    close(storageServerSocket);
+
+//////////////////// STORAGE SERVER INITIALIZATION AND QUERYING ////////////////////////
+
+int ss_count = 0; // Count of no. of storage servers
+struct StorageServerInfo *storageServerList = NULL; // Head of linked list(reversed) of storage server
+
+/* Function to add storage server (meta) information to the linked list */
+void addStorageServerInfo(const char *ip, int ns_port, int cs_port)
+{
+    struct StorageServerInfo *newServer = (struct StorageServerInfo *)malloc(sizeof(struct StorageServerInfo));
+    strcpy(newServer->ip_address, ip);
+    newServer->naming_server_port = ns_port;
+    newServer->client_server_port = cs_port;
+    newServer->ss_id = ++ss_count;
+    newServer->next = storageServerList; //Reversed linked list 
+    for (int i = 0; i < MAX_NO_ACCESSIBLE_PATHS; i++)
+    {
+        newServer->accessible_paths[i][0] = '\0';
+    }
+    storageServerList = newServer;
 }
 
-int clientServerSocket, storageServerSocket;
+/* Function to initialize the storage server*/
+int initStorageServer(int ss_id)
+{
+    struct StorageServerInfo *current = storageServerList;
+    while (current != NULL)
+    {
+        if (current->ss_id == ss_id){
+            // Found the matching storage server by ID
+            int foundStorageServerSocket;
+            int naming_server_port = current->naming_server_port;
+            
+            if((foundStorageServerSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+                perror("Error in opening a socket");
+                continue; //To be handled
+            }
+
+            struct sockaddr_in storageServerAddr;
+            storageServerAddr.sin_family = AF_INET;
+            storageServerAddr.sin_port = htons(naming_server_port);
+            storageServerAddr.sin_addr.s_addr = INADDR_ANY;
+            if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0){
+                perror("Invalid address/Address not supported");
+                continue; //To be handled
+            }
+
+            if (connect(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0){
+                perror("Error in connecting to the storage server");
+                close(foundStorageServerSocket);
+            }
+            // Return the connected socket
+            return foundStorageServerSocket;
+        }
+        current = current->next;
+    }
+    // Storage server not found, return -1 to indicate an error
+    return -1;
+}
+
+// Function to search for a path in storage servers
+struct StorageServerInfo* searchStorageServer(char* file_path) {
+    int found = 0;
+    struct StorageServerInfo* temp = storageServerList;
+    while (temp != NULL) {
+        // Search accessible paths in the current storage server
+        int i = 0;
+        while (temp->accessible_paths[i][0] != '\0') {  // Check if the path is not an empty string
+            //printf("%s %s\n",file_path,temp->accessible_paths[i]);
+            if (strncmp(file_path, temp->accessible_paths[i],strlen(file_path)) == 0) {
+                found = 1;
+                break; // Path found, no need to continue searching
+            }
+            i++;
+        }
+        if(found){
+            break;
+        }
+        temp = temp->next;
+    }
+
+    if (found) {
+        printf("hai 1 path found\n");
+        return temp; // Found the path in a storage server
+    } else {
+        printf("hai path found\n");
+        return NULL; // Path not found in any storage server
+    }
+}
+
+void handleStorageServerQueries(){
+    struct sockaddr_in server_addr, new_addr;
+    socklen_t addr_size;
+    char buffer[10000];
+    int bytesReceived;
+    int receivingInfo = 0; // State variable
+    int pathIndex = -2;
+    char ip_address[256];
+    int naming_server_port, client_server_port;
+    int Socktotalk;
+    addr_size = sizeof(new_addr);
+    int new_socket = accept(storageServerSocket, (struct sockaddr *)&new_addr, &addr_size); // Accept a storage server connection
+    
+    // Handle storage server queries here
+    while (1)
+    {
+        bytesReceived = recv(new_socket, buffer, 10000, 0);
+        if (bytesReceived < 0){
+            perror("Error in receiving data");
+            exit(1);
+        }
+        buffer[bytesReceived] = '\0';
+        // printf("buffer:%s\n",buffer);
+        trim(buffer);
+        char *token = strtok(buffer, ":");
+        while (token != NULL)
+        {
+            receivingInfo++;
+            // printf("token:%s\n",token);
+            if (strncmp(token, "COMPLETED", 9) == 0)
+            {
+                // send ss number to nameserver
+                int ss_no = storageServerList->ss_id;
+                char ss_no_str[20]; // Assuming the string won't exceed 20 characters
+                // Use snprintf to convert the integer to a string
+                snprintf(ss_no_str, sizeof(ss_no_str), "%d", ss_no);
+                // printf("hai inside completed");
+                if (send(new_socket, &ss_no_str, sizeof(int), 0) < 0)
+                {
+                    perror("Error sending ss_id");
+                    exit(1);
+                }
+                receivingInfo = -4;
+                storageServerList->serversock=initStorageServer(storageServerList->ss_id);
+                // close(Socktotalk);
+                break;
+            }
+            // Check if the received message is "SENDING STORAGE SERVER INFORMATION"
+            if (strcmp(token, "SENDING STORAGE SERVER INFORMATION") == 0)
+            {
+                receivingInfo = 0;
+            }
+            // Check if we are in the state of receiving storage server information
+            if (receivingInfo == 1)
+            {
+                // Parse the received information
+                parseStorageServerInfo(token, ip_address, &naming_server_port, &client_server_port);
+                // Add the information to the linked list
+                addStorageServerInfo(ip_address, naming_server_port, client_server_port);
+                pathIndex = 0;
+                // Socktotalk=initStorageServer(storageServerList->ss_id);
+            }
+            else
+            {
+                if (pathIndex >= 0 && pathIndex < 300)
+                {
+                    strcpy(storageServerList->accessible_paths[pathIndex++], token);
+                    printf("naming server storage:%s\n",storageServerList->accessible_paths[pathIndex-1]);
+                }
+            }
+            token = strtok(NULL, ":");
+        }
+        if (receivingInfo == -4)
+        {
+            break;
+        }
+    }
+    // printf("hello");
+    // close(new_socket);
+}
 
 // // Initialize a storage server
 // void initializeStorageServer(const char* nameServerIP, int nameServerPort) {
@@ -97,41 +267,9 @@ int clientServerSocket, storageServerSocket;
 //     // Close the socket when done
 //     close(clientSocket);
 // }
-// int main(int argc, char *argv[]) {
-//     if (argc < 3) {
-//         printf("Usage: %s <name_server_ip:port> <server/client>\n", argv[0]);
-//         exit(1);
-//     }
-//     char* nameServerAddress = argv[1]; // Format: "name_server_ip:name_server_port"
-//     int nameServerPort = 0;
-//     sscanf(nameServerAddress, "%*[^:]:%d", &nameServerPort);
-//     char* type = argv[2];
-//     if (strcmp(type, "server") == 0) {
-//         initializeStorageServer(nameServerAddress, nameServerPort);
-//     } else if (strcmp(type, "client") == 0) {
-//         initializeClient(nameServerAddress, nameServerPort);
-//     } else {
-//         printf("Invalid type. Use 'server' or 'client'.\n");
-//     }
-//     return 0;
-// }
 
 
-int ss_count = 0;
 
-// Data structure to represent Storage server
-struct StorageServerInfo
-{
-    int ss_id;
-    char ip_address[256];
-    int naming_server_port;
-    int client_server_port;
-    char accessible_paths[300][300];
-    struct StorageServerInfo *next;
-    int serversock;
-};
-
-struct StorageServerInfo *storageServerList = NULL;
 
 // Mutex for protecting the fileTable
 pthread_mutex_t fileTableMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -159,27 +297,7 @@ struct LRU_HashMap
     int size;
 };
 
-void trim(char *str)
-{
-    int start, end, len = strlen(str);
 
-    // Find the first non-white space character
-    for (start = 0; start < len && isspace((unsigned char)str[start]); start++)
-    {
-    }
-
-    // Find the last non-white space character
-    for (end = len - 1; end > start && isspace((unsigned char)str[end]); end--)
-    {
-    }
-
-    // Shift the non-white space part of the string to the beginning
-    if (start != 0 || end != len - 1)
-    {
-        memmove(str, str + start, end - start + 1);
-        str[end - start + 1] = '\0'; // Null-terminate the trimmed string
-    }
-}
 
 // Hash function
 int hash(char *key)
@@ -307,35 +425,8 @@ int get(struct LRU_HashMap *map, char *key)
     }
     return -1; // Key not found
 }
-// Function to search for a path in storage servers
-struct StorageServerInfo* searchStorageServer(char* file_path) {
-    int found = 0;
-    struct StorageServerInfo* temp = storageServerList;
-    while (temp != NULL) {
-        // Search accessible paths in the current storage server
-        int i = 0;
-        while (temp->accessible_paths[i][0] != '\0') {  // Check if the path is not an empty string
-            //printf("%s %s\n",file_path,temp->accessible_paths[i]);
-            if (strncmp(file_path, temp->accessible_paths[i],strlen(file_path)) == 0) {
-                found = 1;
-                break; // Path found, no need to continue searching
-            }
-            i++;
-        }
-        if(found){
-            break;
-        }
-        temp = temp->next;
-    }
 
-    if (found) {
-        printf("hai 1 path found\n");
-        return temp; // Found the path in a storage server
-    } else {
-        printf("hai path found\n");
-        return NULL; // Path not found in any storage server
-    }
-}
+
 
 
 
@@ -372,21 +463,7 @@ struct StorageServerInfo *efficientStorageServerSearch(struct HashMap *hashmap, 
     return NULL; // File path not found in the HashMap
 }
 
-// Function to add storage server information to the linked list
-void addStorageServerInfo(const char *ip, int ns_port, int cs_port)
-{
-    struct StorageServerInfo *newServer = (struct StorageServerInfo *)malloc(sizeof(struct StorageServerInfo));
-    strcpy(newServer->ip_address, ip);
-    newServer->naming_server_port = ns_port;
-    newServer->client_server_port = cs_port;
-    newServer->ss_id = ++ss_count;
-    newServer->next = storageServerList;
-    for (int i = 0; i < 300; i++)
-    {
-        newServer->accessible_paths[i][0] = '\0';
-    }
-    storageServerList = newServer;
-}
+
 
 // Function to handle client requests
 void handleClientRequests() {
@@ -448,128 +525,9 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
     }
 }
 
-int initStorageServer(int ss_id)
-{
-    struct StorageServerInfo *current = storageServerList;
 
-    while (current != NULL)
-    {
-        if (current->ss_id == ss_id)
-        {
-            // Found the matching storage server by ID
-            char ip_address[256];
-            int naming_server_port = current->naming_server_port;
-            strcpy(ip_address, current->ip_address);
-            int storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-            if (storageServerSocket < 0)
-            {
-                perror("Error in socket");
-                exit(1);
-            }
-            struct sockaddr_in storageServerAddr;
-            storageServerAddr.sin_family = AF_INET;
-            storageServerAddr.sin_port = htons(naming_server_port);
-            storageServerAddr.sin_addr.s_addr = INADDR_ANY;
-            if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0)
-            {
-                perror("Invalid address/Address not supported");
-                exit(EXIT_FAILURE);
-            }
-            if (connect(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0)
-            {
-                perror("Error in connecting to the storage server");
-                exit(1);
-            }
-            // Return the connected socket
-            return storageServerSocket;
-        }
-        current = current->next;
-    }
-    // Storage server not found, return -1 to indicate an error
-    return -1;
-}
 
-void handleStorageServerQueries()
-{
-    struct sockaddr_in server_addr, new_addr;
-    socklen_t addr_size;
-    char buffer[10000];
-    int bytesReceived;
-    int receivingInfo = 0; // State variable
-    int pathIndex = -2;
-    char ip_address[256];
-    int naming_server_port, client_server_port;
-    int Socktotalk;
-    addr_size = sizeof(new_addr);
-    int new_socket = accept(storageServerSocket, (struct sockaddr *)&new_addr, &addr_size); // Accept a storage server connection
-    // Handle storage server queries here
-    while (1)
-    {
-        bytesReceived = recv(new_socket, buffer, 10000, 0);
-        if (bytesReceived < 0)
-        {
-            perror("Error in receiving data");
-            exit(1);
-        }
-        buffer[bytesReceived] = '\0';
-        // printf("buffer:%s\n",buffer);
-        trim(buffer);
-        char *token = strtok(buffer, ":");
-        while (token != NULL)
-        {
-            receivingInfo++;
-            // printf("token:%s\n",token);
-            if (strncmp(token, "COMPLETED", 9) == 0)
-            {
-                // send ss number to nameserver
-                int ss_no = storageServerList->ss_id;
-                char ss_no_str[20]; // Assuming the string won't exceed 20 characters
-                // Use snprintf to convert the integer to a string
-                snprintf(ss_no_str, sizeof(ss_no_str), "%d", ss_no);
-                // printf("hai inside completed");
-                if (send(new_socket, &ss_no_str, sizeof(int), 0) < 0)
-                {
-                    perror("Error sending ss_id");
-                    exit(1);
-                }
-                receivingInfo = -4;
-                storageServerList->serversock=initStorageServer(storageServerList->ss_id);
-                // close(Socktotalk);
-                break;
-            }
-            // Check if the received message is "SENDING STORAGE SERVER INFORMATION"
-            if (strcmp(token, "SENDING STORAGE SERVER INFORMATION") == 0)
-            {
-                receivingInfo = 0;
-            }
-            // Check if we are in the state of receiving storage server information
-            if (receivingInfo == 1)
-            {
-                // Parse the received information
-                parseStorageServerInfo(token, ip_address, &naming_server_port, &client_server_port);
-                // Add the information to the linked list
-                addStorageServerInfo(ip_address, naming_server_port, client_server_port);
-                pathIndex = 0;
-                // Socktotalk=initStorageServer(storageServerList->ss_id);
-            }
-            else
-            {
-                if (pathIndex >= 0 && pathIndex < 300)
-                {
-                    strcpy(storageServerList->accessible_paths[pathIndex++], token);
-                    printf("naming server storage:%s\n",storageServerList->accessible_paths[pathIndex-1]);
-                }
-            }
-            token = strtok(NULL, ":");
-        }
-        if (receivingInfo == -4)
-        {
-            break;
-        }
-    }
-    // printf("hello");
-    // close(new_socket);
-}
+
 
 
 
@@ -589,6 +547,9 @@ int main(int argc, char* argv[])
 
     // Initializing address for clientServer and Storage server
     struct sockaddr_in clientServerAddr, storageServerAddr;
+    bzero(&clientServerAddr, sizeof(clientServerAddr));
+    bzero(&storageServerAddr, sizeof(storageServerAddr));
+    
     clientServerAddr.sin_family = AF_INET;
     clientServerAddr.sin_port = htons(CLIENT_PORT);
     clientServerAddr.sin_addr.s_addr = INADDR_ANY;
@@ -602,11 +563,13 @@ int main(int argc, char* argv[])
         bind(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0)
     {
         perror("Error in binding sockets");
+        closeConnections();
         exit(EXIT_FAILURE);
     }
 
     if (listen(clientServerSocket, NO_SERVER_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_CLIENTS_TO_LISTEN_TO) < 0){
         perror("Error in listening");
+        closeConnections();
         exit(EXIT_FAILURE);
     }
 
@@ -616,8 +579,8 @@ int main(int argc, char* argv[])
     }
     
     pthread_t clientThread, storageServerThread;
-    pthread_create(&clientThread, NULL, handleClientRequests, NULL);
-    pthread_create(&storageServerThread, NULL, handleStorageServerQueries, NULL);
+    pthread_create(&clientThread, NULL, (void*)handleClientRequests, NULL);
+    pthread_create(&storageServerThread, NULL, (void*)handleStorageServerQueries, NULL);
     
     // The above function loops for ever so this end of code is never reached
     pthread_join(clientThread, NULL);
