@@ -721,6 +721,7 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     namingServerNumber = atoi(responseBuffer);
     return namingServerNumber;
 }
+
 char nsIP[16]; // Assuming IPv4
 int nsPort;
 int clientPort;
@@ -729,11 +730,13 @@ int main(int argc, char *argv[])
     // Signal handler for Ctrl+C and Ctrl+Z
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
+    
     // Ask the user for the Naming Server's IP and port
     printf("Enter the IP address of the Naming Server: ");
     scanf("%s", nsIP);
     printf("Enter the port to talk with the Naming Server: ");
     scanf("%d", &nsPort);
+    
     // Ask the user for the client communication port
     printf("Enter the port to talk with the Client: ");
     scanf("%d", &clientPort);

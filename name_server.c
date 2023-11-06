@@ -1,59 +1,25 @@
+#include "header_files.h"
+#include "name_server.h"
 
-// #include "header_files.h"
-// #include "name_server.h"
-// int socketID; //socketID for the Name Server
-// /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
-// void handle_signal(int signum) {
-//     close(socketID);
-//     exit(signum);
-// }
+#define CLIENT_PORT 8080 // Port no. for communication with the client
+#define STORAGE_SERVER_PORT 9090 // Port no. for communication with the storage server
 
-// /* Function to close the socket*/
-// void closeSocket(){
-//     close(socketID);
-//     exit(1);
-// }
+#define NO_CLIENTS_TO_LISTEN_TO 50 // Maximum no. of clients the name server can handle
+#define NO_SERVER_TO_LISTEN_TO 100 // Maximum no. of storage servers can initialize
 
-// int main(int argc, char* argv[])
-// {
-//     // Signal handler for Ctrl+C and Ctrl+Z
-//     signal(SIGINT, handle_signal);
-//     signal(SIGTERM, handle_signal);
-//     // Checking if the port number is provided
-//     if(argc!=2){
-//         printf("Usage: %s <port>\n", argv[0]);
-//         exit(1);
-//     }
-//     // Creating a socket
-//     int PORT = atoi(argv[1]);
-//     if((socketID = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-//         perror("Error: opening socket\n");
-//         exit(1);
-//     }
-//     // Creating a server and client address structure
-//     struct sockaddr_in serverAddress, nameServerAddress, clientAddress;
-//     memset(&serverAddress, 0, sizeof(serverAddress));
-//     memset(&nameServerAddress, 0, sizeof(nameServerAddress));
-//     memset(&clientAddress, 0, sizeof(clientAddress));
-//     nameServerAddress.sin_family = AF_INET;
-//     nameServerAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-//     nameServerAddress.sin_port = htons(PORT);
-//     // Binding the socket to the server address
-//     if(bind(socketID, (struct sockaddr*)&nameServerAddress, sizeof(nameServerAddress)) < 0){
-//         perror("Error: binding socket\n");
-//         exit(1);
-//     }
-//     printf("Name Server has successfully started on port %d", PORT);
+/* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
+void handle_signal(int signum) {
+    closeConnections();
+    exit(signum);
+}
 
-//     // Sending the vital info to Name Server: IP Address, PORT FOR NS communication, PORT for SS communication, all accessible paths
+/* Function to close server and client connection sockets */
+void closeConnections(){
+    close(clientServerSocket);
+    close(storageServerSocket);
+}
 
-//     // Closing the socket
-//     if(close(socketID) < 0){
-//         perror("Error: closing socket\n");
-//         exit(1);
-//     }
-//     return 0;
-// }
+int clientServerSocket, storageServerSocket;
 
 // // Initialize a storage server
 // void initializeStorageServer(const char* nameServerIP, int nameServerPort) {
@@ -150,21 +116,10 @@
 //     return 0;
 // }
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <ctype.h>
 
-#define CLIENT_PORT 8080
-#define STORAGE_SERVER_PORT 9090
 int ss_count = 0;
 
-// Data structure to represent file information
+// Data structure to represent Storage server
 struct StorageServerInfo
 {
     int ss_id;
@@ -183,7 +138,7 @@ pthread_mutex_t fileTableMutex = PTHREAD_MUTEX_INITIALIZER;
 // Mutex for controlling server initialization
 pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
 // Sockets for clients and storage servers
-int clientServerSocket, storageServerSocket;
+
 #define HASH_TABLE_SIZE 1000
 
 // Define a struct for key-value pairs
@@ -477,7 +432,6 @@ void handleClientRequests() {
                 char response[1024] = "FILE NOT FOUND";
                 send(new_socket, response, strlen(response), 0);
             }
-
         }
     }
 }
@@ -534,6 +488,7 @@ int initStorageServer(int ss_id)
     // Storage server not found, return -1 to indicate an error
     return -1;
 }
+
 void handleStorageServerQueries()
 {
     struct sockaddr_in server_addr, new_addr;
@@ -616,55 +571,63 @@ void handleStorageServerQueries()
     // close(new_socket);
 }
 
-// Function to close server connections
-void closeConnections()
-{
-    close(clientServerSocket);
-    close(storageServerSocket);
-}
 
-int main()
+
+int main(int argc, char* argv[])
 {
-    pthread_t clientThread, storageServerThread;
-    // Initialize server sockets
+    // Signal handler for Ctrl+C and Ctrl+Z
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+
+    // Initialize server and client sockets
     clientServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientServerSocket < 0 || storageServerSocket < 0)
-    {
-        perror("Error in socket");
-        exit(1);
+    if (clientServerSocket < 0 || storageServerSocket < 0){
+        perror("Error in initializing socket");
+        exit(EXIT_FAILURE);
     }
+
+    // Initializing address for clientServer and Storage server
     struct sockaddr_in clientServerAddr, storageServerAddr;
     clientServerAddr.sin_family = AF_INET;
     clientServerAddr.sin_port = htons(CLIENT_PORT);
     clientServerAddr.sin_addr.s_addr = INADDR_ANY;
+
     storageServerAddr.sin_family = AF_INET;
     storageServerAddr.sin_port = htons(STORAGE_SERVER_PORT);
     storageServerAddr.sin_addr.s_addr = INADDR_ANY;
 
+    // Binding storage server and client addresses
     if (bind(clientServerSocket, (struct sockaddr *)&clientServerAddr, sizeof(clientServerAddr)) < 0 ||
         bind(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0)
     {
-        perror("Error in binding");
-        exit(1);
+        perror("Error in binding sockets");
+        exit(EXIT_FAILURE);
     }
 
-    if (listen(clientServerSocket, 10) == 0 && listen(storageServerSocket, 10) == 0)
-    {
-        printf("Listening for client requests and storage server queries...\n");
-    }
-    else
-    {
+    if (listen(clientServerSocket, NO_SERVER_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_CLIENTS_TO_LISTEN_TO) < 0){
         perror("Error in listening");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-    handleStorageServerQueries();
-    handleClientRequests();
+
+    else{
+        printf("Nameserver initialized.\n");
+        printf("Listening for storage server initialization and client requests...\n");
+    }
+    
+    pthread_t clientThread, storageServerThread;
+    pthread_create(&clientThread, NULL, handleClientRequests, NULL);
+    pthread_create(&storageServerThread, NULL, handleStorageServerQueries, NULL);
+    
+    // The above function loops for ever so this end of code is never reached
+    pthread_join(clientThread, NULL);
+    pthread_join(storageServerThread, NULL);
+
     // Wait for user input to close connections
     printf("Press Enter to close server connections...\n");
     getchar();
-    // Close server connections
+    
+    // Close server and client listening sokcet
     closeConnections();
-
     return 0;
 }
