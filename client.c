@@ -5,6 +5,7 @@
 #include <stdio.h>
 #define PORT 8080
 #define BUFFER_SIZE 1024
+
 void parseIpPort(const char *data, char *ip_address,int *cs_port)
 {
     // Implement a parsing logic based on your message format

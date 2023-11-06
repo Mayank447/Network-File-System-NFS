@@ -1,14 +1,6 @@
 #include "header_files.h"
 #include "storage_server.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <pthread.h>
+
 #define PATH_BUFFER_SIZE 1024
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int socketID; // socketID for the server
@@ -18,57 +10,55 @@ File * head = NULL;
 File * tail = NULL;
 
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
-void handle_signal(int signum)
-{
+void handle_signal(int signum){
     close(socketID);
     exit(signum);
 }
 
 /* Close the socket*/
-void closeSocket()
-{
+void closeSocket(){
     close(socketID);
     exit(1);
 }
 
-void receiveDataOnClientPort(int newSocket)
+void receiveDataFromClientPort(int clientSocket)
 {
     printf("READY TO RECEIVE CLIENT REQUESTS AND NAMING SERVER REQUESTS\n");
     int buffer;
     ssize_t bytesRead, bytesRead1;
     printf("in function\n");
-    if (bytesRead = recv(newSocket, &buffer, sizeof(buffer), 0) < 0)
-    {
+    if (bytesRead = recv(clientSocket, &buffer, sizeof(buffer), 0) < 0){
         perror("receive error");
         exit(0);
     }
+
     printf("1 stbuffer:%d\n", buffer);
     if (buffer==1)
     {
         char buffer1[1024]={'\0'};
         printf("1 stbuffer:%d\n", buffer);
         // If received data is equal to "READ OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(newSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
         {
             perror("receive error");
             exit(0);
         }
         //buffer1[bytesRead1] = '\0';
         printf("1 2ndbuffer:%s\n", buffer1);
-        sendFile_server_to_client(buffer1, newSocket);
+        sendFile_server_to_client(buffer1, clientSocket);
     }
     else if(buffer == 2){
         char buffer1[10000]={'\0'};
         printf("2 1stbuffer:%d\n", buffer);
         // If received data is equal to "READ OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(newSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
         {
             perror("receive error");
             exit(0);
         }
         //buffer1[bytesRead1] = '\0';
         printf("2 2ndbuffer:%s\n", buffer1);
-        int status = uploadFile_client_to_server(buffer1, newSocket);
+        int status = uploadFile_client_to_server(buffer1, clientSocket);
 
         if(status == -1)
         {
@@ -79,14 +69,14 @@ void receiveDataOnClientPort(int newSocket)
         char buffer1[10000]={'\0'};
         printf("2 1stbuffer:%d\n", buffer);
         // If received data is equal to "GET OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(newSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
         {
             perror("receive error");
             exit(0);
         }
         //buffer1[bytesRead1] = '\0';
         printf("2 2ndbuffer:%s\n", buffer1);
-        getFileMetaData(buffer1, newSocket);
+        getFileMetaData(buffer1, clientSocket);
     }
     else
     {
@@ -771,13 +761,13 @@ int main(int argc, char *argv[])
     }
     // NameServerSocket=talkToStorageServer(nsIP,nsPort);
     int ClientSock=talkToStorageServer(nsIP, clientPort);
-    receiveDataOnClientPort(ClientSock);
+    receiveDataFromClientPort(ClientSock);
     // pthread_t clientThread, nameServerThread;
     //  printf("hai");
     //  char buffer[1024];
     //  ssize_t bytesRead;
     // printf("READY TO RECEIVE CLIENT REQUESTS AND NAMING SERVER REQUESTS\n");
-    // if (pthread_create(&clientThread, NULL, receiveDataOnClientPort, &ClientSocket) != 0) {
+    // if (pthread_create(&clientThread, NULL, receiveDataFromClientPort, &ClientSocket) != 0) {
     //     perror("Error creating client thread");
     //     return 1;
     // }
