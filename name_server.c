@@ -113,7 +113,7 @@ void* handleStorageServer(void* argument)
     }
 
     buffer[bytesReceived] = '\0';
-    // printf("buffer:%s\n",buffer);
+    printf("buffer:%s\n",buffer);
     trim(buffer); // Removes leading white spaces
 
     char *token = strtok(buffer, ":");
@@ -144,13 +144,11 @@ void* handleStorageServer(void* argument)
 
         // Check if we are in the state of receiving storage server information
         else if (receivingInfo == 1){
-            printf("Here\n");
             parseStorageServerInfo(token, ip_address, &naming_server_port, &client_server_port); 
             server = addStorageServerInfo(ip_address, naming_server_port, client_server_port); // Add the information to the linked list
             
             receivingInfo = 2; //Ready to receive all the accessible paths
             pathIndex = 0;
-            printf("Done\n");
         }
 
         // Receiving accessible paths

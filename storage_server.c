@@ -544,6 +544,7 @@ int renameFile(const char *oldFileName, const char *newFileName, int clientSocke
 
 int clientSocket[MAX_CLIENT_CONNECTIONS];
 char filename[50] = "paths_SS.txt";
+
 // Function to collect accessible paths from the user and store them in a file
 void collectAccessiblePaths()
 {
@@ -619,97 +620,66 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
         perror("Error: opening socket for Naming Server");
         return -1;
     }
+    
     memset(&nsAddress, 0, sizeof(nsAddress));
     nsAddress.sin_family = AF_INET;
     nsAddress.sin_port = htons(9090);
     nsAddress.sin_addr.s_addr = inet_addr(nsIP);
     bind(nsSocket, (struct sockaddr *)&nsAddress, sizeof(nsAddress));
+    // if(bind(nsSocket, (struct sockaddr *)&nsAddress, sizeof(nsAddress)) < 0){
+    //     perror("Error binding name server socket:");
+    //     return -1;
+    // }
+    
     // Connect to the Naming Server
     if (connect(nsSocket, (struct sockaddr *)&nsAddress, sizeof(nsAddress)) < 0)
     {
         perror("Error: connecting to Naming Server");
-        // close(nsSocket);
+        close(nsSocket);
         return -1;
     }
-    // Prepare the information to send
-    char infoBuffer1[PATH_BUFFER_SIZE];
-    snprintf(infoBuffer1, sizeof(infoBuffer1), "SENDING|STORAGE|SERVER|INFORMATION");
 
-    // Send the information to the Naming Server
-    if (send(nsSocket, infoBuffer1, strlen(infoBuffer1), 0) < 0)
-    {
-        perror("Error: sending information to Naming Server");
-        // close(nsSocket);
-        return -1;
-    }
-    if (send(nsSocket, ":", 1, 0) < 0)
-    {
-        perror("Error: sending colon to Naming Server");
-        // close(nsSocket);
-        return -1;
-    }
-    char infoBuffer[PATH_BUFFER_SIZE];
-    snprintf(infoBuffer, sizeof(infoBuffer), "%s;%d;%d", nsIP, nsPort, clientPort);
-    // Send the information to the Naming Server
-    if (send(nsSocket, infoBuffer, strlen(infoBuffer), 0) < 0)
-    {
-        perror("Error: sending information to Naming Server");
-        // close(nsSocket);
-        return -1;
-    }
-    if (send(nsSocket, ":", 1, 0) < 0)
-    {
-        perror("Error: sending colon to Naming Server");
-        // close(nsSocket);
-        return -1;
-    }
+    // Prepare the information to send
+    char infoBuffer[PATH_BUFFER_SIZE], tempBuffer[PATH_BUFFER_SIZE];
+    snprintf(infoBuffer, sizeof(infoBuffer), "SENDING|STORAGE|SERVER|INFORMATION");
+    strcat(infoBuffer, ":");
+    snprintf(tempBuffer, sizeof(infoBuffer), "%s;%d;%d", nsIP, nsPort, clientPort);
+    strcat(infoBuffer, tempBuffer);
+    strcat(infoBuffer, ":");
+
     // Open the file for reading
     FILE *pathFile = fopen(filename, "r");
-    if (pathFile == NULL)
-    {
+    if (pathFile == NULL){
         perror("Error opening path file");
-        // close(nsSocket);
+        close(nsSocket);
         return -1;
     }
-    // Read and send each path
+
+    // Read and concatenat each path specified
     char path[PATH_BUFFER_SIZE];
     while (fgets(path, sizeof(path), pathFile) != NULL)
     {
         printf("path :%s", path);
-        if (send(nsSocket, path, strlen(path), 0) < 0)
-        {
-            perror("Error: sending path to Naming Server");
-            fclose(pathFile);
-            // close(nsSocket);
-            return -1;
-        }
-        if (send(nsSocket, ":", 1, 0) < 0)
-        {
-            perror("Error: sending colon to Naming Server");
-            // close(nsSocket);
-            return -1;
-        }
+        if(path[strlen(path)-1] == '\n') path[strlen(path)-1] = '\0';
+        strcat(infoBuffer, path);
+        strcat(infoBuffer, ":");
     }
 
-    // Send a "completed" message
+    // Concatenating a "COMPLETED" message
     const char *completedMessage = "COMPLETED";
-    if (send(nsSocket, completedMessage, strlen(completedMessage), 0) < 0)
-    {
-        perror("Error: sending completed message to Naming Server");
+    strcat(infoBuffer, completedMessage);
+    printf("%s", infoBuffer);
+
+    // Sending the information buffer and closing the file descriptor
+    if (send(nsSocket, infoBuffer, strlen(infoBuffer), 0) < 0){
+        perror("Error: sending information to Naming Server");
         fclose(pathFile);
-        // close(nsSocket);
+        close(nsSocket);
         return -1;
     }
-    if (send(nsSocket, ":", 1, 0) < 0)
-    {
-        perror("Error: sending colon to Naming Server");
-        // close(nsSocket);
-        return -1;
-    }
-    // Close the file and the socket
     fclose(pathFile);
-    // close(nsSocket);
-    //  Receive a number from the Naming Server
+
+    //  Receive a Storage Server ID from the Naming Server
     NameServerSockImp=talkToStorageServer(nsIP, nsPort);
     char responseBuffer[PATH_BUFFER_SIZE];
     // int socketofNS=talkToStorageServer(nsIP, nsPort);

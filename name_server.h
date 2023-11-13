@@ -13,7 +13,7 @@ struct StorageServerInfo{
     int serversock;
 };
 
-void addStorageServerInfo(const char *ip, int ns_port, int cs_port);
+struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port);
 int initStorageServer(int ss_id);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);
