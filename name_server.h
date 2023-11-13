@@ -16,5 +16,6 @@ struct StorageServerInfo{
 void addStorageServerInfo(const char *ip, int ns_port, int cs_port);
 int initStorageServer(int ss_id);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
+void* handleStorageServer(void* argument);
 
 #endif

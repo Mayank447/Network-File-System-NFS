@@ -7,3 +7,4 @@ void trim(char *str) {
     while(i<len && !isspace((unsigned char)str[i])) str[j++] = str[i++];
     str[j] = '\0';
 }
+

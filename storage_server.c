@@ -27,9 +27,9 @@ void receiveDataFromClientPort(int clientSocket)
     int buffer;
     ssize_t bytesRead, bytesRead1;
     printf("in function\n");
-    if (bytesRead = recv(clientSocket, &buffer, sizeof(buffer), 0) < 0){
+    if ((bytesRead = recv(clientSocket, &buffer, sizeof(buffer), 0)) < 0){
         perror("receive error");
-        exit(0);
+        return;
     }
 
     printf("1 stbuffer:%d\n", buffer);
@@ -38,7 +38,7 @@ void receiveDataFromClientPort(int clientSocket)
         char buffer1[1024]={'\0'};
         printf("1 stbuffer:%d\n", buffer);
         // If received data is equal to "READ OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if ((bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0)) < 0)
         {
             perror("receive error");
             exit(0);
@@ -51,7 +51,7 @@ void receiveDataFromClientPort(int clientSocket)
         char buffer1[10000]={'\0'};
         printf("2 1stbuffer:%d\n", buffer);
         // If received data is equal to "READ OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if ((bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0)) < 0)
         {
             perror("receive error");
             exit(0);
@@ -69,7 +69,7 @@ void receiveDataFromClientPort(int clientSocket)
         char buffer1[10000]={'\0'};
         printf("2 1stbuffer:%d\n", buffer);
         // If received data is equal to "GET OPERATION INITIATED," call the function
-        if (bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0) < 0)
+        if ((bytesRead1 = recv(clientSocket, buffer1, sizeof(buffer1), 0)) < 0)
         {
             perror("receive error");
             exit(0);
@@ -95,7 +95,7 @@ void *receiveDataOnNameServerPort(void *arg)
     char buffer[1024];
     ssize_t bytesRead;
 
-    while (bytesRead = recv(nameServerSocket, buffer, sizeof(buffer), 0) > 0)
+    while ((bytesRead = recv(nameServerSocket, buffer, sizeof(buffer), 0)) > 0)
     {
         // Lock the mutex to ensure atomic access to shared resources
         pthread_mutex_lock(&mutex);
@@ -110,6 +110,7 @@ void *receiveDataOnNameServerPort(void *arg)
     {
         perror("Error receiving data on Naming Server port");
     }
+    return NULL;
 }
 /* Create a file - createFile() */
 void createFile(Directory *parent, const char *filename, int ownerID)
@@ -632,7 +633,7 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     }
     // Prepare the information to send
     char infoBuffer1[PATH_BUFFER_SIZE];
-    snprintf(infoBuffer1, sizeof(infoBuffer1), "SENDING STORAGE SERVER INFORMATION");
+    snprintf(infoBuffer1, sizeof(infoBuffer1), "SENDING|STORAGE|SERVER|INFORMATION");
 
     // Send the information to the Naming Server
     if (send(nsSocket, infoBuffer1, strlen(infoBuffer1), 0) < 0)
