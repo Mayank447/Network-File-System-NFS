@@ -14,8 +14,10 @@ struct StorageServerInfo{
 };
 
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port);
-int initStorageServer(struct StorageServerInfo*);
+int initConnectionToStorageServer(struct StorageServerInfo* server);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);
+void handleClientRequests(int clientSocket);
+struct StorageServerInfo* searchStorageServer(char* file_path);
 
 #endif

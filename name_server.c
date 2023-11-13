@@ -28,7 +28,9 @@ void handle_signal(int signum) {
 
 int ss_count = 0; // Count of no. of storage servers
 pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;
+
 struct StorageServerInfo *storageServerList = NULL; // Head of linked list(reversed) of storage server
+// TODO - Need to implement a lock for storageServerHead and each storageServer
 
 /* Function to add storage server (meta) information to the linked list */
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port)
@@ -74,6 +76,13 @@ void* handleStorageServerInitialization()
             pthread_mutex_unlock(&ss_count_lock);
             continue;
         }
+
+        // Detach the thread - resources of the thread can be released when it finishes without waiting for it explicitly.
+        if (pthread_detach(storageServerThreads[ss_count]) != 0) {
+            perror("Error detaching Storage server thread");
+            continue;
+        }
+
         ss_count++;
         pthread_mutex_unlock(&ss_count_lock);
     }
@@ -102,14 +111,11 @@ void* handleStorageServer(void* argument)
     }
 
     buffer[bytesReceived] = '\0';
-    printf("buffer:%s\n",buffer);
     trim(buffer); // Removes leading white spaces
 
     char *token = strtok(buffer, ":");
     while (token != NULL)
     {
-        printf("token:%s\n",token);
-
         // Checking if the string being sent is COMPLETED i.e. all the data was previously sent
         if (receivingInfo > 1 && strcmp(token, "COMPLETED") == 0)
         {
@@ -120,14 +126,6 @@ void* handleStorageServer(void* argument)
             if (send(connectedServerSocketID, &ss_id_str, sizeof(int), 0) < 0){
                 perror("Error sending ss_id");
                 return NULL;
-            }
-            int serverSocket = initStorageServer(server);
-            if(serverSocket != -1){
-                server->serverSocket = serverSocket;
-                printf("Storage server %d initialization done.\n", serverID);
-            }
-            else{
-                printf("Error connecting to specificied PORT. This error needs to be handled.");
             }
             break;
         }
@@ -154,18 +152,35 @@ void* handleStorageServer(void* argument)
 
         token = strtok(NULL, ":");
     }
-
     close(connectedServerSocketID);
+
+
+    // Initializing the connection to specified Storage Server's PORT number
+    int serverSocket = initConnectionToStorageServer(server);
+    if(serverSocket != -1){
+        server->serverSocket = serverSocket;
+        printf("Storage server %d initialization done.\n", serverID);
+    }
+    else{
+        printf("Error connecting to specificied PORT. This error needs to be handled.");
+    }
     connectedServerSocketID = server->serverSocket;
 
-    // Storage server initialized, need to handle sending and receiving requests from that storage server.  
-    while(1) ;
+
+    // Handling requests from storage server.  
+    bzero(buffer, BUFFER_LENGTH);
+    while(1){
+        if((bytesReceived = recv(connectedServerSocketID, buffer, sizeof(buffer), 0)) < 0){
+            printf("Storage server %d is down", serverID);
+            break;
+        }
+    }
     return NULL;
 }
 
 
 /* Function to initialize the connection to storage servers with the specified PORT number*/
-int initStorageServer(struct StorageServerInfo* server)
+int initConnectionToStorageServer(struct StorageServerInfo* server)
 {
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if(serverSocket == -1) {
@@ -203,7 +218,76 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 }
 
 
+/////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES //////////////////////////
+void handleClients()
+{
+    while(1){
+        struct sockaddr_in client_address;
+        socklen_t address_size = sizeof(struct sockaddr_in);
+        int newClientSocket = accept(clientSocket, (struct sockaddr*)&client_address, &address_size);
+        if (newClientSocket < 0) {
+            perror("Error handleClients(): Client accept failed");
+            continue;
+        }
+        
+        printf("Client connection request accepted from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
+        
+        // Create a new thread for each new client
+        pthread_t clientThread;
+        if (pthread_create(&clientThread, NULL, (void*)handleClientRequests, (void*)&newClientSocket) < 0) {
+            perror("Thread creation failed");
+            continue;
+        }
+
+        // Detach the thread
+        if (pthread_detach(clientThread) != 0) {
+            perror("Error detaching client thread");
+            continue;
+        }
+    }
+    return;
+}
+
+/* Function to handle a client request */
+void handleClientRequests(int clientSocket){
+    int var_recv = 0;
+    char buffer[BUFFER_LENGTH];
+    int bytesReceived = recv(clientSocket, &var_recv, sizeof(var_recv), 0);
+    if (bytesReceived < 0) {
+        perror("Error in receiving data");
+        exit(1);
+    }
+
+    if(var_recv == 1){
+        // code to receive file_path from client
+        bytesReceived = recv(clientSocket, buffer, BUFFER_LENGTH, 0);
+        if (bytesReceived < 0) {
+            perror("Error in receiving data");
+            exit(1);
+        }
+        buffer[bytesReceived] = '\0';
+        // printf("Requested file_path: %s\n", buffer); // debugging
+        //printf("hai 1 %s\n",buffer);
+        // Check if the file exists in the storage servers
+        struct StorageServerInfo* storageServer = searchStorageServer(buffer);
+        if (storageServer != NULL) {
+            // File found in storage server, send its details to the client
+            //printf("not null %s\n",buffer);
+            char response[1024];
+            snprintf(response, sizeof(response), "%s:%d", storageServer->ip_address, storageServer->client_server_port);
+            send(clientSocket, response, strlen(response), 0);
+        } else {
+            // File not found, send a response to the client
+            char response[1024] = "FILE NOT FOUND";
+            send(clientSocket, response, strlen(response), 0);
+        }
+    }
+}
+
+
 /////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////
+
+
 
 // Function to search for a path in storage servers
 struct StorageServerInfo* searchStorageServer(char* file_path) {
@@ -473,54 +557,6 @@ struct StorageServerInfo *efficientStorageServerSearch(struct HashMap *hashmap, 
 
 
 
-// Function to handle client requests
-void handleClientRequests() {
-    int new_socket;
-    struct sockaddr_in new_addr;
-    socklen_t addr_size;
-    char buffer[1024];
-    int bytesReceived;
-
-    while (1) {
-        addr_size = sizeof(new_addr);
-        new_socket = accept(clientSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a client connection
-
-    // Handle client requests here
-        // code to get that 'o' variable from client
-        int var_recv = 0;
-        bytesReceived = recv(new_socket, &var_recv, sizeof(var_recv), 0);
-        if (bytesReceived < 0) {
-            perror("Error in receiving data");
-            exit(1);
-        }
-
-        if(var_recv == 1){
-            // code to receive file_path from client
-            bytesReceived = recv(new_socket, buffer, 1024, 0);
-            if (bytesReceived < 0) {
-                perror("Error in receiving data");
-                exit(1);
-            }
-            buffer[bytesReceived] = '\0';
-            // printf("Requested file_path: %s\n", buffer); // debugging
-            //printf("hai 1 %s\n",buffer);
-            // Check if the file exists in the storage servers
-            struct StorageServerInfo* storageServer = searchStorageServer(buffer);
-            if (storageServer != NULL) {
-                // File found in storage server, send its details to the client
-                //printf("not null %s\n",buffer);
-                char response[1024];
-                snprintf(response, sizeof(response), "%s:%d", storageServer->ip_address, storageServer->client_server_port);
-                send(new_socket, response, strlen(response), 0);
-            } else {
-                // File not found, send a response to the client
-                char response[1024] = "FILE NOT FOUND";
-                send(new_socket, response, strlen(response), 0);
-            }
-        }
-    }
-}
-
 
 //////////////////////////////// MAIN FUNCTION ////////////////////////
 int main(int argc, char* argv[])
@@ -575,7 +611,7 @@ int main(int argc, char* argv[])
     clientThreads = (pthread_t*)malloc(sizeof(pthread_t) * MAX_CLIENTS);
     
     pthread_t clientThread, storageServerThread;
-    pthread_create(&clientThread, NULL, (void*)handleClientRequests, NULL);
+    pthread_create(&clientThread, NULL, (void*)handleClients, NULL);
     pthread_create(&storageServerThread, NULL, (void*)handleStorageServerInitialization, NULL);
     
     // The above function loops for ever so this end of code is never reached

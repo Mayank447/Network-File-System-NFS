@@ -6,17 +6,18 @@
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
-void parseIpPort(const char *data, char *ip_address,int *cs_port)
+void parseIpPort(const char *data, char *ip_address,int *ss_port)
 {
-    // Implement a parsing logic based on your message format
-    // For example, if your message format is "IP:PORT1:PORT2", you can use sscanf
-    if (sscanf(data, "%[^:]:%d", ip_address, cs_port) != 2)
+    // Implement a parsing lgic based on your message format
+    // For example, if your message format is "IP:PORT", you can use sscanf
+    if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2)
     {
         printf("Error parsing storage server info: %s\n", data);
     }
     return;
 }
 
+// To the formatted requested meta data for a file
 void parseMetadata(const char *data, char *filepath, int *size, int *permissions) {
     char *token;
     char copy[1024];
@@ -42,6 +43,7 @@ void parseMetadata(const char *data, char *filepath, int *size, int *permissions
     }
 }
 
+////////////////////////////// MAIN FUNCTION /////////////////////////////////
 int main()
 {
     int client_socket;

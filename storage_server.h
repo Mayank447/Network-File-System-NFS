@@ -85,6 +85,7 @@ void getDir(char* directoryname, int clientSocketID);
 void listDirectoryContents(Directory* dir);
 
 // Functions for initialization
-int open_a_connection(const char *IP, int Port);
+int open_a_connection_port(int Port, int num_listener);
+void* handleClientRequest(int socket);
 
 #endif

@@ -4,12 +4,10 @@
 #define PATH_BUFFER_SIZE 1024
 #define NS_PORT 9090 // PORT for initializing connection with the NameServer
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int socketID; // socketID for the server
 int ss_id;      // Storage server ID
 int clientPort; // PORT for communication with the client
-int clientSocketID;
+int clientSocketID; //Main binded socket for accepting requests from clients
 
 int nsSocketID; // Main socket for communication with the Name server
 int nsPort;     // PORT for communication with Name server (user-specified)
@@ -36,7 +34,7 @@ void handle_signal(int signum){
 }
 
 
-//////////////////////// FUNCTIONS FOR INITIALIZE CONNECTION WITH THE NAME SERVER /////////////////////
+/////////////////// FUNCTIONS FOR INITIALIZING THE CONNECTION WITH THE NAME SERVER /////////////////////
 
 /* Function to send vital information to the Naming Server and receive the ss_id */
 int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
@@ -82,8 +80,8 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     char path[PATH_BUFFER_SIZE];
     while (fgets(path, sizeof(path), pathFile) != NULL)
     {
-        if(path[strlen(path)-1] == '\n') path[strlen(path)-1] = '\0';
-        printf("path :%s\n", path);
+        if(path[strlen(path)-1] == '\n') 
+            path[strlen(path)-1] = '\0';
         strcat(infoBuffer, path);
         strcat(infoBuffer, ":");
     }
@@ -91,7 +89,6 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     // Concatenating a "COMPLETED" message
     const char *completedMessage = "COMPLETED";
     strcat(infoBuffer, completedMessage);
-    printf("%s", infoBuffer);
 
     // Sending the information buffer and closing the file descriptor
     if (send(nsSocket, infoBuffer, strlen(infoBuffer), 0) < 0){
@@ -103,8 +100,15 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     fclose(pathFile);
 
     //  Connecting a Storage Server ID from the Naming Server on the user input 
-    if((nsSocketID = (open_a_connection(nsIP, nsPort))) == -1){
+    if((nsSocketID = (open_a_connection_port(nsPort, 1))) == -1){
         printf("Error: opening a dedicated socket for communication with NameServer");
+        return -1;
+    }
+
+    // Waiting for connection request from NameServer
+    nsSocketID = accept(nsSocketID, NULL, NULL);
+    if (nsSocketID < 0){
+        perror("Name Server accept failed...");
         return -1;
     }
 
@@ -115,18 +119,21 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
         return -1;
     }
     close(nsSocket);
+
     ss_id = atoi(responseBuffer);
+    printf("Assigned Storage Server ID: %d\n", ss_id);
+    printf("Storage Server connected to Nameserver on PORT %d ...\n", nsPort);
     return 0;
 }
 
 
 // Function to open a connection to a PORT and accept a single connection
-int open_a_connection(const char *IP, int Port)
+int open_a_connection_port(int Port, int num_listener)
 {
     // Opening a socket for communication
     int socketOpened = socket(AF_INET, SOCK_STREAM, 0);
     if (socketOpened < 0){
-        perror("Error open_a_connection: opening socket");
+        perror("Error open_a_connection_port: opening socket");
         return -1;
     }
     
@@ -139,27 +146,16 @@ int open_a_connection(const char *IP, int Port)
 
     // Binding the socket
     if(bind(socketOpened, (struct sockaddr *)&serverAddress, sizeof(serverAddress))<0){
-        perror("Error open_a_connection: binding socket");
+        perror("Error open_a_connection_port: binding socket");
         return -1;
     }
 
     // Listening for connection
-    if (listen(socketOpened, 1) == -1){
+    if (listen(socketOpened, num_listener) == -1){
         perror("Error: Unable to listen");
         return -1;
     }
-
-    printf("Storage Server listening on PORT %d ...\n", Port);
-
-    // Waiting for connection from NameServer
-    struct sockaddr_in newServerAddress;
-    socklen_t addrSize = sizeof(newServerAddress);
-    int newSocket = accept(socketOpened, (struct sockaddr *)&newServerAddress, &addrSize);
-    if (newSocket < 0){
-        perror("server accept failed...");
-        return -1;
-    }
-    return newSocket;
+    return socketOpened;
 }
 
 // Function to collect accessible paths from the user and store them in a file
@@ -176,13 +172,12 @@ void collectAccessiblePaths()
     while (1){
         printf("Enter an accessible path (or 'exit' to stop): ");
         fgets(path, sizeof(path), stdin);
-        fprintf(file, "%s", path); // Write the path to the file
-        
         if (strcmp(path, "exit\n") == 0) break;
+
+        fprintf(file, "%s", path); // Write the path to the file 
     }
     fclose(file);
 }
-
 
 
 //////////////// FUNCTIONS TO HANDLE KEY COMMUNICATION WITH NAMESERVER ///////////////////
@@ -191,97 +186,58 @@ void collectAccessiblePaths()
 
 
 ////////////////////// FUNCTIONS TO HANDLE COMMUNICATION WITH CLIENT /////////////////////////
-void receiveDataFromClientPort(int clientSocketID)
+void handleClients()
 {
-    printf("READY TO RECEIVE CLIENT REQUESTS AND NAMING SERVER REQUESTS\n");
-    int buffer;
-    ssize_t bytesRead, bytesRead1;
-    printf("in function\n");
-    if ((bytesRead = recv(clientSocketID, &buffer, sizeof(buffer), 0)) < 0){
-        perror("receive error");
-        return;
-    }
+    while(1){
+        struct sockaddr_in client_address;
+        socklen_t address_size = sizeof(struct sockaddr_in);
+        int clientSocket = accept(clientSocketID, (struct sockaddr*)&client_address, &address_size);
+        if (clientSocket < 0) {
+            perror("Error handleClients(): Client accept failed");
+            continue;
+        }
+        
+        printf("Client connection request accepted from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
+        
+        // Create a new thread for each new client
+        pthread_t clientThread;
+        if (pthread_create(&clientThread, NULL, (void*)handleClientRequest, (void*)&clientSocket) < 0) {
+            perror("Thread creation failed");
+            continue;
+        }
 
-    printf("1 stbuffer:%d\n", buffer);
-    if (buffer==1)
-    {
-        char buffer1[1024]={'\0'};
-        printf("1 stbuffer:%d\n", buffer);
-        // If received data is equal to "READ OPERATION INITIATED," call the function
-        if ((bytesRead1 = recv(clientSocketID, buffer1, sizeof(buffer1), 0)) < 0)
-        {
-            perror("receive error");
-            exit(0);
-        }
-        //buffer1[bytesRead1] = '\0';
-        printf("1 2ndbuffer:%s\n", buffer1);
-        sendFile_server_to_client(buffer1, clientSocketID);
-    }
-    else if(buffer == 2){
-        char buffer1[10000]={'\0'};
-        printf("2 1stbuffer:%d\n", buffer);
-        // If received data is equal to "READ OPERATION INITIATED," call the function
-        if ((bytesRead1 = recv(clientSocketID, buffer1, sizeof(buffer1), 0)) < 0)
-        {
-            perror("receive error");
-            exit(0);
-        }
-        //buffer1[bytesRead1] = '\0';
-        printf("2 2ndbuffer:%s\n", buffer1);
-        int status = uploadFile_client_to_server(buffer1, clientSocketID);
-
-        if(status == -1)
-        {
-            perror("Error accessing file");
+        // Detach the thread
+        if (pthread_detach(clientThread) != 0) {
+            perror("Error detaching client thread");
+            continue;
         }
     }
-    else if(buffer == 3){
-        char buffer1[10000]={'\0'};
-        printf("2 1stbuffer:%d\n", buffer);
-        // If received data is equal to "GET OPERATION INITIATED," call the function
-        if ((bytesRead1 = recv(clientSocketID, buffer1, sizeof(buffer1), 0)) < 0)
-        {
-            perror("receive error");
-            exit(0);
-        }
-        //buffer1[bytesRead1] = '\0';
-        printf("2 2ndbuffer:%s\n", buffer1);
-        getFileMetaData(buffer1, clientSocketID);
-    }
-    else
-    {
-        printf("not in\n");
-    }
-
-    if (bytesRead < 0){
-    perror("Error receiving data on client port");
-    }
+    return;
 }
 
 
-void *receiveDataOnNameServerPort(void *arg)
-{
-    int nameServerSocket = *(int *)arg;
-    char buffer[1024];
-    ssize_t bytesRead;
-
-    while ((bytesRead = recv(nameServerSocket, buffer, sizeof(buffer), 0)) > 0)
-    {
-        // Lock the mutex to ensure atomic access to shared resources
-        pthread_mutex_lock(&mutex);
-
-        // Process the received data as needed
-        // You can implement your data processing logic here
-        // Unlock the mutex when done
-        pthread_mutex_unlock(&mutex);
+void* handleClientRequest(int clientSocket){
+    char request[RECEIVE_BUFFER_LENGTH];
+    if(recv(clientSocket, request, sizeof(request), 0) < 0){
+        perror("Error handleClientRequest(): receiving request from the client");
+        return NULL;
     }
 
-    if (bytesRead < 0)
-    {
-        perror("Error receiving data on Naming Server port");
+    // Check if the request number (say should be b/t 1 to 7) is valid. That is a int and within the specified range
+    int request_no = atoi(request);
+    if(request_no <= 1 && request_no >= 7){
+        char* message = "Invalid request no.";
+        if(send(clientSocket, message, strlen(message), 0) < 0){
+            perror("Error handleClientRequest(): Unable to send Invalid request no.");
+            return NULL;
+        }
     }
-    return NULL;
+
+    // Request Handler for that particular query
 }
+
+
+///////////////////////////// FILE FUNCTIONS //////////////////////////
 
 /* Create a file - createFile() */
 void createFile(Directory *parent, const char *filename, int ownerID)
@@ -727,13 +683,11 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
     
-    // Ask the user for the Naming Server's IP and port
+    // Ask the user for the Naming Server's IP and port and Client communication Port
     printf("Enter the IP address of the Naming Server: ");
     scanf("%s", nsIP);
     printf("Enter the port to talk with the Naming Server: ");
     scanf("%d", &nsPort);
-    
-    // Ask the user for the client communication port
     printf("Enter the port to talk with the Client: ");
     scanf("%d", &clientPort);
     
@@ -745,41 +699,19 @@ int main(int argc, char *argv[])
     if (initialiazed == -1) {
         printf("Failed to send information to the Naming Server.\n");
     }
-
     else{
         snprintf(filename, sizeof(filename), "path_SS%d.txt", ss_id);
         if (rename("path_SS.txt", filename) != 0){
             perror("Error renaming the Paths file");
         }
-        printf("Received Storage Server ID: %d\n", ss_id);
     }
 
-    // Creating a Socket for communication with the client
-
-    // NameServerSocket=talkToStorageServer(nsIP,nsPort);
-    int ClientSock = open_a_connection(nsIP, clientPort);
-    receiveDataFromClientPort(ClientSock);
+    // Accepting request from clients - This will loop for ever
+    clientSocketID = open_a_connection_port(clientPort, MAX_CLIENT_CONNECTIONS);
+    printf("Storage server listening for clients on PORT %d\n", clientPort);
+    handleClients();
     
-    // pthread_t clientThread, nameServerThread;
-    //  printf("hai");
-    //  char buffer[1024];
-    //  ssize_t bytesRead;
-    // printf("READY TO RECEIVE CLIENT REQUESTS AND NAMING SERVER REQUESTS\n");
-    // if (pthread_create(&clientThread, NULL, receiveDataFromClientPort, &ClientSocket) != 0) {
-    //     perror("Error creating client thread");
-    //     return 1;
-    // }
-
-    // if (pthread_create(&nameServerThread, NULL, receiveDataOnNameServerPort, &NameServerSocket) != 0) {
-    //     perror("Error creating Naming Server thread");
-    //     return 1;
-    // }
-    // Wait for the threads to finish
-    // pthread_join(clientThread, NULL);
-    // pthread_join(nameServerThread, NULL);
-
-    // Destroy the mutex
-    pthread_mutex_destroy(&mutex);
+    // Closing connection - This part of the code is never reached
     closeConnection();
     return 0;
 }
