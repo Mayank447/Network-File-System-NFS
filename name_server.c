@@ -1,30 +1,9 @@
 #include "header_files.h"
 #include "name_server.h"
+#include "params.h"
 #include "helper_functions.h"
 
-#define CLIENT_PORT 8080 // Port no. for communication with the client
-#define STORAGE_SERVER_PORT 9090 // Port no. for communication with the storage server
-
-#define NO_CLIENTS_TO_LISTEN_TO 50 // Maximum no. of clients the name server can handle
-#define NO_SERVER_TO_LISTEN_TO 100 // Maximum no. of storage servers can initialize
-
-#define MAX_SERVERS 100
-#define MAX_CLIENTS 100
-
-#define BUFFER_LENGTH 10000
-
-int clientServerSocket, storageServerSocket; // Sockets for handling storage server queries and client requests
-void closeConnections(){ // Function to close server and client connection sockets
-    close(clientServerSocket);
-    close(storageServerSocket);
-}
-
-/* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
-void handle_signal(int signum) {
-    closeConnections();
-    exit(signum);
-}
-
+int clientSocket, storageServerSocket; // Sockets for handling storage server queries and client requests
 pthread_t* storageServerThreads; //Thread for direct communication with a Storage server
 pthread_t* clientThreads; //Thread for direct communication with a client
 
@@ -34,8 +13,18 @@ struct storageServerArg{
     int ss_id;
 };
 
+void closeConnections(){ // Function to close server and client connection sockets
+    close(clientSocket);
+    close(storageServerSocket);
+}
 
-///////////////////////// STORAGE SERVER INITIALIZATION AND QUERYING ///////////////////////////
+/* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
+void handle_signal(int signum) {
+    closeConnections();
+    exit(signum);
+}
+
+///////////////////////// STORAGE SERVER INITIALIZATION///////////////////////////
 
 int ss_count = 0; // Count of no. of storage servers
 pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -59,8 +48,8 @@ struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int 
 }
 
 
-/* Thread handler for storage server request/queries */
-void* handleStorageServerQueries()
+/* Thread handler for storage server request/queries (General/open handler) */
+void* handleStorageServerInitialization()
 {   
     struct storageServerArg args[MAX_SERVERS];
 
@@ -132,8 +121,14 @@ void* handleStorageServer(void* argument)
                 perror("Error sending ss_id");
                 return NULL;
             }
-            storageServerList->serversock=initStorageServer(storageServerList->ss_id);
-            printf("Storage server %d initialization done.\n", serverID);
+            int serverSocket = initStorageServer(server);
+            if(serverSocket != -1){
+                server->serverSocket = serverSocket;
+                printf("Storage server %d initialization done.\n", serverID);
+            }
+            else{
+                printf("Error connecting to specificied PORT. This error needs to be handled.");
+            }
             break;
         }
 
@@ -159,7 +154,42 @@ void* handleStorageServer(void* argument)
 
         token = strtok(NULL, ":");
     }
+
+    close(connectedServerSocketID);
+    connectedServerSocketID = server->serverSocket;
+
+    // Storage server initialized, need to handle sending and receiving requests from that storage server.  
+    while(1) ;
     return NULL;
+}
+
+
+/* Function to initialize the connection to storage servers with the specified PORT number*/
+int initStorageServer(struct StorageServerInfo* server)
+{
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if(serverSocket == -1) {
+        perror("Error in opening a socket");
+        return -1;
+    }
+
+    struct sockaddr_in storageServerAddr;
+    storageServerAddr.sin_family = AF_INET;
+    storageServerAddr.sin_port = htons(server->naming_server_port);
+    storageServerAddr.sin_addr.s_addr = INADDR_ANY;
+    if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0){
+        perror("Invalid address/Address not supported");
+        close(serverSocket);
+        return -1;
+    }
+
+    if (connect(serverSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0){
+        perror("Error in connecting to the storage server");
+        close(serverSocket);
+        return -1;
+    }
+
+    return serverSocket; // Return the connected socket
 }
 
 // Function to parse the storage server parameters  [Need to check for validity of the sent data i.e. no. of digits]
@@ -173,45 +203,7 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 }
 
 
-
-/* Function to initialize the connection to storage servers -> Inefficient can be bettered*/
-int initStorageServer(int ss_id)
-{
-    struct StorageServerInfo *current = storageServerList;
-    while (current != NULL)
-    {
-        if (current->ss_id == ss_id){
-            // Found the matching storage server by ID
-            int foundStorageServerSocket;
-            int naming_server_port = current->naming_server_port;
-            
-            if((foundStorageServerSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-                perror("Error in opening a socket");
-                continue; //To be handled
-            }
-
-            struct sockaddr_in storageServerAddr;
-            storageServerAddr.sin_family = AF_INET;
-            storageServerAddr.sin_port = htons(naming_server_port);
-            storageServerAddr.sin_addr.s_addr = INADDR_ANY;
-            if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0){
-                perror("Invalid address/Address not supported");
-                continue; //To be handled
-            }
-
-            if (connect(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0){
-                perror("Error in connecting to the storage server");
-                close(foundStorageServerSocket);
-            }
-            // Return the connected socket
-            return foundStorageServerSocket;
-        }
-        current = current->next;
-    }
-    // Storage server not found, return -1 to indicate an error
-    return -1;
-}
-
+/////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////
 
 // Function to search for a path in storage servers
 struct StorageServerInfo* searchStorageServer(char* file_path) {
@@ -244,44 +236,7 @@ struct StorageServerInfo* searchStorageServer(char* file_path) {
 }
 
 
-// // Initialize a storage server
-// void initializeStorageServer(const char* nameServerIP, int nameServerPort) {
-//     // Create a socket for communication with the naming server
-//     int storageSocket = socket(AF_INET, SOCK_STREAM, 0);
-//     if (storageSocket < 0) {
-//         perror("Error: opening storage socket\n");
-//         exit(1);
-//     }
-//     // Create a sockaddr_in structure for the naming server
-//     struct sockaddr_in nameServerAddr;
-//     memset(&nameServerAddr, 0, sizeof(nameServerAddr));
-//     nameServerAddr.sin_family = AF_INET;
-//     nameServerAddr.sin_port = htons(nameServerPort);
-//     if (inet_pton(AF_INET, nameServerIP, &nameServerAddr.sin_addr) <= 0) {
-//         perror("Error: invalid name server IP address\n");
-//         exit(1);
-//     }
-//     // Connect to the naming server
-//     if (connect(storageSocket, (struct sockaddr*)&nameServerAddr, sizeof(nameServerAddr)) < 0) {
-//         perror("Error: connecting to the naming server\n");
-//         exit(1);
-//     }
-//     // Construct a message with vital details for the current storage server
-//     char storageServerIP[16];
-//     int storageServerPort;
-//     // Extract storage server details (e.g., from user input)
-//     // For example:
-//     // sscanf(storageServerAddress, "%[^:]:%d", storageServerIP, &storageServerPort);
-//     char vitalDetailsMessage[1024];
-//     snprintf(vitalDetailsMessage, sizeof(vitalDetailsMessage), "IP: %s\nNM_PORT: %d\nCLIENT_PORT: %d\nPATHS: ...\n", storageServerIP, storageServerPort, 0);
-//     // Send vital details to the naming server
-//     if (send(storageSocket, vitalDetailsMessage, strlen(vitalDetailsMessage), 0) < 0) {
-//         perror("Error: sending vital details to naming server\n");
-//         exit(1);
-//     }
-//     // Close the socket when done
-//     close(storageSocket);
-// }
+
 // // Initialize a client
 // void initializeClient(const char* nameServerIP, int nameServerPort) {
 //     // Create a socket for communication with the naming server
@@ -528,7 +483,7 @@ void handleClientRequests() {
 
     while (1) {
         addr_size = sizeof(new_addr);
-        new_socket = accept(clientServerSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a client connection
+        new_socket = accept(clientSocket, (struct sockaddr*)&new_addr, &addr_size); // Accept a client connection
 
     // Handle client requests here
         // code to get that 'o' variable from client
@@ -567,14 +522,7 @@ void handleClientRequests() {
 }
 
 
-
-
-
-
-
-
-
-
+//////////////////////////////// MAIN FUNCTION ////////////////////////
 int main(int argc, char* argv[])
 {
     // Signal handler for Ctrl+C and Ctrl+Z
@@ -582,9 +530,9 @@ int main(int argc, char* argv[])
     signal(SIGTERM, handle_signal);
 
     // Initialize server and client sockets
-    clientServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientServerSocket < 0 || storageServerSocket < 0){
+    if (clientSocket < 0 || storageServerSocket < 0){
         perror("Error in initializing socket");
         exit(EXIT_FAILURE);
     }
@@ -603,7 +551,7 @@ int main(int argc, char* argv[])
     storageServerAddr.sin_addr.s_addr = INADDR_ANY;
 
     // Binding storage server and client addresses
-    if (bind(clientServerSocket, (struct sockaddr *)&clientServerAddr, sizeof(clientServerAddr)) < 0 ||
+    if (bind(clientSocket, (struct sockaddr *)&clientServerAddr, sizeof(clientServerAddr)) < 0 ||
         bind(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0)
     {
         perror("Error in binding sockets");
@@ -611,7 +559,7 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (listen(clientServerSocket, NO_SERVER_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_CLIENTS_TO_LISTEN_TO) < 0){
+    if (listen(clientSocket, NO_SERVER_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_CLIENTS_TO_LISTEN_TO) < 0){
         perror("Error in listening");
         closeConnections();
         exit(EXIT_FAILURE);
@@ -619,7 +567,7 @@ int main(int argc, char* argv[])
 
     else{
         printf("Nameserver initialized.\n");
-        printf("Listening for storage server initialization and client requests...\n");
+        printf("Listening for storage server initialization and client requests on IP address 127.0.0.1 ...\n");
     }
 
     // Allocating threads for direct communication with Storage Server and client
@@ -628,7 +576,7 @@ int main(int argc, char* argv[])
     
     pthread_t clientThread, storageServerThread;
     pthread_create(&clientThread, NULL, (void*)handleClientRequests, NULL);
-    pthread_create(&storageServerThread, NULL, (void*)handleStorageServerQueries, NULL);
+    pthread_create(&storageServerThread, NULL, (void*)handleStorageServerInitialization, NULL);
     
     // The above function loops for ever so this end of code is never reached
     pthread_join(clientThread, NULL);

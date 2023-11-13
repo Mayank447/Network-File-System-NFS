@@ -10,11 +10,11 @@ struct StorageServerInfo{
     int client_server_port;
     char accessible_paths[MAX_NO_ACCESSIBLE_PATHS][MAX_LENGTH_OF_ACCESSIBLE_PATH];
     struct StorageServerInfo *next;
-    int serversock;
+    int serverSocket;
 };
 
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port);
-int initStorageServer(int ss_id);
+int initStorageServer(struct StorageServerInfo*);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);
 

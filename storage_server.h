@@ -84,4 +84,7 @@ void deleteDirectory(const char* path, int clientSocketID);
 void getDir(char* directoryname, int clientSocketID);
 void listDirectoryContents(Directory* dir);
 
+// Functions for initialization
+int open_a_connection(const char *IP, int Port);
+
 #endif
