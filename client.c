@@ -3,8 +3,21 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdio.h>
-#define PORT 8080
+#define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
 #define BUFFER_SIZE 1024
+
+void printOperations(){
+    printf("1. Read File\n");
+    printf("2. Write to a File\n");
+    printf("3. Obtain the metadata about a File\n");
+    printf("4. Create a File\n");
+    printf("5. Copy File\n"); // Specify the two directory paths
+    printf("6. Delete File\n");
+    printf("7. Create Folder\n");
+    printf("8. Copy Folder\n"); // Specify the two paths
+    printf("9. Delete Folder");
+    printf("Choose operation:\n");
+}
 
 void parseIpPort(const char *data, char *ip_address,int *ss_port)
 {
@@ -46,18 +59,19 @@ void parseMetadata(const char *data, char *filepath, int *size, int *permissions
 ////////////////////////////// MAIN FUNCTION /////////////////////////////////
 int main()
 {
-    int client_socket;
+    int clientSocketID;
     struct sockaddr_in server_address;
     char buffer[BUFFER_SIZE];
     char new_server_ip[256];
+
     int new_server_port;
-    if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((clientSocketID = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(PORT);
+    server_address.sin_port = htons(NAMESERVER_PORT);
 
     server_address.sin_addr.s_addr = INADDR_ANY;
     if (inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr) < 0)
@@ -65,50 +79,53 @@ int main()
         perror("Invalid address/Address not supported");
         exit(EXIT_FAILURE);
     }
-    if (connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address)) < 0)
-    {
-        perror("Connection to new server failed");
+
+    if (connect(clientSocketID, (struct sockaddr *)&server_address, sizeof(server_address)) < 0){
+        perror("Connection to nameserver failed");
         exit(EXIT_FAILURE);
     }
-    printf("Choose operation:\n");
-    printf("1. Read the file and save it to a directory\n");
-    printf("2. Write to the file\n");
-    printf("3. Obtain information about the file\n");
+    printf("Connected to Nameserver..\n");
+
+    // while(1){}
+    printOperations();
     int operation;
     scanf("%d",&operation);
 
     if (operation==1)
     {
         int o=1;
+        
         // Perform read operation
-        printf("Enter the file path to read: \n");
         char file_path[256];
+        printf("Enter the file path to read: \n");
         scanf("%s",file_path);
-        if (send(client_socket, &o, sizeof(o), 0) < 0) {
+
+        if (send(clientSocketID, &o, sizeof(o), 0) < 0) {
             perror("Error: sending completed message to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
 
         // Send the file path to the naming server
-        if(send(client_socket, file_path, strlen(file_path), 0) < 0)
-        {
+        if(send(clientSocketID, file_path, strlen(file_path), 0) < 0){
             perror("Error: sending file path to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
+
         char store[1024]={'\0'};
         // Receive IP address and port of the storage server (SS) from the naming server
-        if(recv(client_socket, store, sizeof(store), 0) < 0)
-        {
+        if(recv(clientSocketID, store, sizeof(store), 0) < 0){
             perror("Error: receiving new server IP and Port from Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
         printf("%s\n",store);
-        // parse the ip address port number with delimiter a :
+
+        // Parse the ip address port number with delimiter a :
         parseIpPort(store, new_server_ip, &new_server_port);
-        printf("line 89 %s\n", new_server_ip);
+        printf("Storage server IP: %s\n", new_server_ip);
+        
         int new_client_socket;
         struct sockaddr_in new_server_address;
         if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -180,27 +197,27 @@ int main()
         char file_path[256];
         scanf("%s",file_path);
 
-        if (send(client_socket, &o, sizeof(o), 0) < 0)
+        if (send(clientSocketID, &o, sizeof(o), 0) < 0)
         {
             perror("Error: sending completed message to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
 
         // Send the file path to the naming server
-        if(send(client_socket, file_path, strlen(file_path), 0) < 0)
+        if(send(clientSocketID, file_path, strlen(file_path), 0) < 0)
         {
             perror("Error: sending file path to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
         
         // Receive IP address and port of the storage server (SS) from the naming server
         char store[1024]={'\0'};
-        if(recv(client_socket, store, sizeof(store), 0) < 0)
+        if(recv(clientSocketID, store, sizeof(store), 0) < 0)
         {
             perror("Error: receiving new server IP and Port from Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
 
@@ -294,27 +311,27 @@ int main()
         char file_path[256];
         scanf("%s",file_path);
 
-        if (send(client_socket, &o, sizeof(o), 0) < 0)
+        if (send(clientSocketID, &o, sizeof(o), 0) < 0)
         {
             perror("Error: sending completed message to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
 
         // Send the file path to the naming server
-        if(send(client_socket, file_path, strlen(file_path), 0) < 0)
+        if(send(clientSocketID, file_path, strlen(file_path), 0) < 0)
         {
             perror("Error: sending file path to Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
         
         // Receive IP address and port of the storage server (SS) from the naming server
         char store[1024]={'\0'};
-        if(recv(client_socket, store, sizeof(store), 0) < 0)
+        if(recv(clientSocketID, store, sizeof(store), 0) < 0)
         {
             perror("Error: receiving new server IP and Port from Naming Server\n");
-            close(client_socket);
+            close(clientSocketID);
             return -1;
         }
 

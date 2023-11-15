@@ -219,6 +219,8 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 
 
 /////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES //////////////////////////
+
+/* Function to handle a new client request. The function assign a thread to each accepted client. */
 void handleClients()
 {
     while(1){
@@ -250,14 +252,15 @@ void handleClients()
 
 /* Function to handle a client request */
 void handleClientRequests(int clientSocket){
-    int var_recv = 0;
     char buffer[BUFFER_LENGTH];
-    int bytesReceived = recv(clientSocket, &var_recv, sizeof(var_recv), 0);
+    int bytesReceived = recv(clientSocket, &buffer, BUFFER_LENGTH, 0);
     if (bytesReceived < 0) {
         perror("Error in receiving data");
-        exit(1);
+        return;
     }
 
+    printf("Properly inside handleClientRequests\n");
+    int var_recv = 0;
     if(var_recv == 1){
         // code to receive file_path from client
         bytesReceived = recv(clientSocket, buffer, BUFFER_LENGTH, 0);
