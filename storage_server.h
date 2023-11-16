@@ -22,18 +22,12 @@
 #define ERROR_SOCKET 4
 
 typedef struct file_struct{
-    char name[MAX_FILENAME_LENGTH];   // filename
-    char path[MAX_PATH_LENGTH];       // filepath (wrt root directroy
-    int size;                         // filesize in bytes
-    int ownerID;                      // owner 
-    int is_locked;                    // concurrency lock (0 for not locked, 1 for read lock, 2 for write lock)
-    int write_client_id;              // clientID of the client modifting it
-    int reader_count;                 // no. of clients reading this file
-    struct file_struct* nextfile;     // pointer to the next filenode in the directory
-    char* file_type;                  // type of file created
-    int file_permissions;             // permissions of the file     --- 666 by default
-    int last_accessed;                // time of last access
-    int last_modified;                // time of last modification
+    char filepath[MAX_PATH_LENGTH];   // filepath (wrt root directroy
+    int read_write;                   // 0 for read/ 1 for write
+    int reader_count;
+    pthread_mutex_t read_write_lock;
+    pthread_mutex_t get_reader_count_lock;  
+    struct file_struct* next;  
 } File;
 
 typedef struct dir_struct{
@@ -68,8 +62,8 @@ char ErrorMsg[1024];
 
 // Functions for files
 void createFile(Directory* parent, const char* filename, int ownerID);
-int uploadFile_client_to_server(char* filename, int clientSocketID);
-void sendFile_server_to_client(char* filename, int clientSocketID);
+int uploadFile_ClientToServer(char* filename, int clientSocketID);
+void sendFile_ServerToClient(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileMetaData(char* filename, int clientSocketID);
 int lockFile(File *file, int lock_type);
@@ -87,5 +81,6 @@ void listDirectoryContents(Directory* dir);
 // Functions for initialization
 int open_a_connection_port(int Port, int num_listener);
 void* handleClientRequest(void*);
+void requestHandler(int requestNo, int clientSocket);
 
 #endif

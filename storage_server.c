@@ -14,12 +14,12 @@ int nsPort;     // PORT for communication with Name server (user-specified)
 char nsIP[16];  // Assuming IPv4
 
 //Global pointers for beggining and last file in struct linked list
-File * head = NULL;
-File * tail = NULL;
+File* fileHead = NULL;
+File* fileTail = NULL;
 
 int clientSocket[MAX_CLIENT_CONNECTIONS];
 char filename[50] = "paths_SS.txt";
-
+char ErrorMsg[ERROR_BUFFER_LENGTH];
 
 /* Close the socket*/
 void closeConnection(){
@@ -33,12 +33,67 @@ void handle_signal(int signum){
     exit(signum);
 }
 
+/////////////////// FUNCTIONS FOR FILE STRUCT /////////////////////////
+int checkFilePathExists(char* path){
+    File* ptr = fileHead;
+    while(ptr != NULL) {
+        if(strcmp(path, ptr->filepath)==0) return 1;
+        ptr=ptr->next;
+    }
+    return 0;
+}
+
+void addFile(char* path)
+{
+    // Check if the path is not already stored in the storage server (TODO - Efficient search)
+    if(checkFilePathExists(path)) {
+        printf("PATH already exists in Accessible path list\n");
+        return;
+    }
+
+    // Creating a new File struct if the path is not already stored
+    File* newFile = (File*)malloc(sizeof(File));
+    strcpy(newFile->filepath, path);
+    newFile->read_write = -1;
+    newFile->reader_count = 0;
+    newFile->next = NULL;
+
+    if(pthread_mutex_init(&newFile->get_reader_count_lock, NULL) < 0 ||
+        pthread_mutex_init(&newFile->read_write_lock, NULL))
+    {
+        printf("Error addFile(): Unable to initialize mutex lock\n");
+        return;
+    }
+    
+    // Adding it to the File struct linked list
+    if(fileHead == NULL){
+        fileHead = newFile;
+        return;
+    }
+
+    File* ptr = fileHead;
+    while(ptr->next != NULL) ptr=ptr->next;
+    ptr->next = newFile;
+    return;
+}
+
+/* Check the existence of a path and whether it corresponds to a file/directory
+ returns 0 in case of files and 1 in case of directories) */
+int checkFileType(char* path)
+{ 
+    struct stat path_stat;
+    stat(path, &path_stat);
+
+    if(S_ISREG(path_stat.st_mode)) return 0;
+    else if(S_ISDIR(path_stat.st_mode)) return 1;
+    return -1;
+}
+
 
 /////////////////// FUNCTIONS FOR INITIALIZING THE CONNECTION WITH THE NAME SERVER /////////////////////
-
-/* Function to send vital information to the Naming Server and receive the ss_id */
 int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 {
+    /* Function to send vital information to the Naming Server and receive the ss_id */
     int nsSocket;
     struct sockaddr_in nsAddress;
 
@@ -127,10 +182,9 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 }
 
 
-// Function to open a connection to a PORT and accept a single connection
 int open_a_connection_port(int Port, int num_listener)
 {
-    // Opening a socket for communication
+    /* Function to open a connection to a PORT and accept a single connection */
     int socketOpened = socket(AF_INET, SOCK_STREAM, 0);
     if (socketOpened < 0){
         perror("Error open_a_connection_port: opening socket");
@@ -158,23 +212,45 @@ int open_a_connection_port(int Port, int num_listener)
     return socketOpened;
 }
 
-// Function to collect accessible paths from the user and store them in a file
+
 void collectAccessiblePaths()
 {
-    char path[PATH_BUFFER_SIZE];
-    FILE *file = fopen(filename, "w"); // Open the file in append mode
+    /* Function to collect accessible paths from the user and store them in a file */
+    FILE *file = fopen(filename, "w");
     if (file == NULL){
         perror("Error opening paths_SS.txt");
         return;
     }
-
     fflush(stdin);
-    while (1){
+
+    char path[PATH_BUFFER_SIZE];
+    while (1)
+    {
         printf("Enter an accessible path (or 'exit' to stop): ");
         fgets(path, sizeof(path), stdin);
         if (strcmp(path, "exit\n") == 0) break;
 
-        fprintf(file, "%s", path); // Write the path to the file 
+        int type = checkFileType(path);
+
+        // Invalid path
+        if(type == -1) 
+            printf("Invalid path");
+
+        // Path corresponds to a File
+        else if(type == 0) {
+            fprintf(file, "%s", path);
+            addFile(path); // Store the path in a File struct
+        }
+        
+        // Path corresponds to a directory
+        else if(type == 1){
+            fprintf(file, "%s", path); // Write the path to the Path file 
+        }
+
+        else{
+            printf("Internal server error\n");
+        }
+
     }
     fclose(file);
 }
@@ -186,6 +262,135 @@ void collectAccessiblePaths()
 
 
 ////////////////////// FUNCTIONS TO HANDLE COMMUNICATION WITH CLIENT /////////////////////////
+void handleErrorCodes(int valid, char* message){
+    if(valid == 0) 
+        strcpy(message, "VALID");
+    else if(valid == 1)
+        strcpy(message, "NAMESERVER ERROR");
+    else if(valid == 2) 
+        strcpy(message, "PATH DOES NOT EXIST");
+    else if(valid == 3)
+        strcpy(message, "STORAGE SERVER IS DOWN");
+    else if(valid == 4)
+        strcpy(message, "A CLIENT IS ALREADY READING THE FILE");
+    else if(valid == 5)
+        strcpy(message, "A CLIENT IS ALREADY WRITING TO THE FILE");
+    else if(valid == 6)
+        strcpy(message, "FILE DOES NOT EXIST");
+    else if(valid == 7)
+        strcpy(message, "FILE ALREADY EXISTS");
+    else if(valid == 8)
+        strcpy(message, "DIRECTORY DOES NOT EXIST");
+    else if(valid == 9)
+        strcpy(message, "DIRECTORY ALREADY EXIST");
+    else if(valid == 10)
+        strcpy(message, "INVALID OPERATION NUMBER");
+}
+
+
+int receive_validateRequestNo(int clientSocket)
+{
+    int valid = 0;
+    char request[RECEIVE_BUFFER_LENGTH];
+    char response[100];
+
+    // Receiving the request no from the client
+    if(recv(clientSocket, request, sizeof(request), 0) < 0){
+        perror("Error receive_validateRequestNo(): receiving operation number from the client");
+        return -1;
+    }
+    int request_no = atoi(request);
+
+    // Validating the range of the request number
+    if(request_no < 1 || request_no > 9) {
+        valid = 10;
+        request_no = -1;
+    }
+    else valid = 0;
+    handleErrorCodes(valid, response);
+
+    // Sending back the response
+    if(send(clientSocket, response, strlen(response), 0) < 0){
+        perror("Error receive_validateRequestNo(): Unable to send reply to request no.");
+        return -1;
+    }
+    return request_no;
+}
+
+
+int validateFilePath(char* filepath, int operation_no)
+{
+    /* Function also locks the file based on the operation number */
+    File* ptr = fileHead;
+    while(ptr != NULL) 
+    {
+        // If the file found and the operation is to read
+        if(strcmp(filepath, ptr->filepath)==0 && operation_no == 1)
+        {
+            pthread_mutex_lock(&ptr->read_write_lock);
+            
+            //Someone is already writing to the file
+            if(ptr->read_write == 1) {
+                pthread_mutex_unlock(&ptr->read_write_lock);
+                return 5; 
+            }
+            else ptr->read_write = 0;
+            
+            // Incrementing the reader count
+            pthread_mutex_lock(&ptr->get_reader_count_lock);
+            ptr->reader_count++;
+            pthread_mutex_unlock(&ptr->get_reader_count_lock);
+            
+            pthread_mutex_unlock(&ptr->read_write_lock);
+            return 0;
+        }
+
+        // File path matches and operation is to write
+        else if(strcmp(filepath, ptr->filepath)==0 && operation_no == 2)
+        {
+            pthread_mutex_lock(&ptr->read_write_lock);
+            
+            // Someone is already reading the file
+            if(ptr->read_write == 0){
+                pthread_mutex_unlock(&ptr->read_write_lock);
+                return 4;
+            }
+            else ptr->read_write = 1;
+
+            pthread_mutex_unlock(&ptr->read_write_lock);
+            return 0;
+        }
+
+        ptr=ptr->next;
+    }
+    return 2;
+
+}
+
+
+int receive_validateFilePath(int clientSocket, char* filepath, int operation_no)
+{
+    // Receiving the filePath
+    if(recv(clientSocket, filepath, sizeof(filepath), 0) < 0){
+        perror("Error receive_validateFilePath(): Unable to receive the file path");
+        close(clientSocket);
+        return -1;
+    } 
+
+    // Validating the filepath based on return value (ERROR_CODE)
+    char response[100];
+    int valid = validateFilePath(filepath, operation_no);
+    handleErrorCodes(valid, response);
+    
+    //Sending back the response
+    if(send(clientSocket, response, strlen(response), 0) < 0){
+        perror("Error receive_validateRequestNo(): Unable to send reply to request no.");
+        return -1;
+    }
+    return valid;
+}
+
+
 void handleClients()
 {
     while(1){
@@ -218,32 +423,40 @@ void handleClients()
 
 void* handleClientRequest(void* argument)
 {
+    // Receiving and validating the request no. from the client
     int clientSocket = *(int*)argument;
-    char request[RECEIVE_BUFFER_LENGTH];
-    if(recv(clientSocket, request, sizeof(request), 0) < 0){
-        perror("Error handleClientRequest(): receiving request from the client");
+    int request_no = receive_validateRequestNo(clientSocket);
+    if(request_no == -1) return NULL;
+
+    // Request Handler for that particular query
+    if(request_no == 1)
+    {
+        char filepath[MAX_PATH_LENGTH];
+        if(receive_validateFilePath(clientSocket, filepath, 1) != 0){
+            return NULL;
+        }
+        sendFile_ServerToClient(filepath, clientSocket);
+        close(clientSocket);
         return NULL;
     }
 
-    // Check if the request number (say should be b/t 1 to 7) is valid. That is a int and within the specified range
-    int request_no = atoi(request);
-    if(request_no <= 1 || request_no >= 7){
-        char* message = "Invalid request no.";
-        if(send(clientSocket, message, strlen(message), 0) < 0){
-            perror("Error handleClientRequest(): Unable to send Invalid request no.");
+    else if(request_no == 2){
+        char filepath[MAX_PATH_LENGTH];
+        if(receive_validateFilePath(clientSocket, filepath, 1) != 0){
             return NULL;
         }
+        uploadFile_ClientToServer(filepath, clientSocket);
+        close(clientSocket);
+        return NULL;
     }
-
-    // Request Handler for that particular query
     return NULL;
 }
 
 
+
 ///////////////////////////// FILE FUNCTIONS //////////////////////////
 
-/* Create a file - createFile() */
-void createFile(Directory *parent, const char *filename, int ownerID)
+/* void createFile(Directory *parent, const char *filename, int ownerID)
 {
     File *newFile = (File *)malloc(sizeof(File));
     if (newFile == NULL)
@@ -266,7 +479,7 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     tail->nextfile = newFile;
     tail = newFile;
     newFile->nextfile = NULL;
-    /*initialize meta data*/
+    initialize meta data
     newFile->size = 0;
     newFile->ownerID = ownerID;
     newFile->reader_count = 0;
@@ -277,8 +490,8 @@ void createFile(Directory *parent, const char *filename, int ownerID)
     newFile->last_accessed = 0;
     newFile->last_modified = 0;
 }
+*/
 
-/* Create a Directory - createDir() */
 void createDir(Directory *parent, const char *dirname)
 {
     Directory *newDir = (Directory *)malloc(sizeof(Directory));
@@ -319,110 +532,45 @@ void createDir(Directory *parent, const char *dirname)
     }
 }
 
-/* List all the directory contents*/
-void listDirectoryContents(Directory *parent)
+void sendFile_ServerToClient(char *filename, int clientSocketID)
 {
-    // Printing all the subdirectories
-    for (Directory *dir = parent->subdir_head; dir != NULL; dir = dir->next_subDir)
-    {
-        printf("%s\n", dir->name);
-    }
+    // Need to handle file lock (TODO)
 
-    // Printing all the files
-    for (File *file = parent->file_head; file != NULL; file = file->nextfile)
-    {
-        printf("%s \t (%d bytes \t ownerID: %d)\n", file->name, file->size, file->ownerID);
-    }
-}
-
-/* Lock a File */
-int lockFile(File *file, int lock_type)
-{
-    if (file->is_locked == 0)
-    {
-        file->is_locked = lock_type;
-        return 0;
-    }
-
-    else if (lock_type == 1 && file->is_locked == 1)
-    {
-        file->reader_count++;
-        return 0;
-    }
-    return 1;
-}
-
-/* Release write lock on a file */
-void write_releaseLock(File *file, int clientID)
-{
-    if (file->is_locked == 2 && file->write_client_id == clientID)
-    {
-        file->is_locked = 0;
-    }
-}
-
-/* Release read lock on a file */
-void read_releaseLock(File *file)
-{
-    if (--file->reader_count == 0 && file->is_locked == 1)
-    {
-        file->is_locked = 0;
-    }
-}
-
-/* Send a file to the client - getFile()*/
-void sendFile_server_to_client(char *filename, int clientSocketID)
-{
-    printf("hai 1\n");
     // Open the file for reading on the server side
     FILE *File = fopen(filename, "rb");  // Use "rb" for binary mode
-    printf("hai 2\n");
-    if (File == NULL)
-    {
-        printf("hai 3\n");
-        char ErrorMsg[ERROR_BUFFER_LENGTH];  // Define ErrorMsg locally
+    if (File == NULL){
+        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
         snprintf(ErrorMsg, ERROR_BUFFER_LENGTH, "File not found.");
-        if (send(clientSocketID, ErrorMsg, strlen(ErrorMsg), 0) < 0)
-        {
-            perror("Failed to send file not found error");
+        
+        if (send(clientSocketID, ErrorMsg, strlen(ErrorMsg), 0) < 0){
+            perror("sendFile_ServerToClient(): FILE NOT FOUND");
+            close(clientSocket);
         }
     }
-    else
-    {
+
+    else {
         char buffer[1024]={'\0'};
-        printf("hai 4\n");
-        while (fgets(buffer, sizeof(buffer), File) != NULL)
-        {
-            // ssize_t bytesRead = fread(buffer, 1, sizeof(buffer), File);
-            // if (bytesRead <= 0)
-            // {
-            //     printf("hai 8\n");
-            //     break;  // End of file or error, exit the loop
-            // }
-            printf("hai 5 %d %s\n",clientSocketID,buffer);
-            if (send(clientSocketID, buffer, sizeof(buffer), 0) < 0)
-            {
-                printf("hai 7\n");
+        while (fgets(buffer, sizeof(buffer), File) != NULL){
+            if (send(clientSocketID, buffer, sizeof(buffer), 0) < 0){
                 perror("Error sending file");
                 fclose(File);
                 return;
             }
         }
-        if (send(clientSocketID, "STOP", sizeof("STOP"), 0) < 0)
-            {
-                printf("hai 7\n");
-                perror("Error sending file");
-                fclose(File);
-                return;
-            }
-        printf("hai 6\n");
+
+        // if (send(clientSocketID, "STOP", sizeof("STOP"), 0) < 0){
+        //     perror("Error sending file");
+        //     fclose(File);
+        //     return;
+        // }
+        close(clientSocket);
         fclose(File);
         printf("File %s sent successfully.\n", filename);
     }
 }
 
 /* Upload a file from client to server - uploadFile()*/
-int uploadFile_client_to_server(char *filename, int clientSocketID)
+int uploadFile_ClientToServer(char *filename, int clientSocketID)
 {
     // Open the file for reading on the server side
     FILE * file = fopen(filename, "a");
@@ -455,6 +603,61 @@ int uploadFile_client_to_server(char *filename, int clientSocketID)
     printf("File %s updated successfully.\n", filename);
     return 0;
 }
+
+/* void listDirectoryContents(Directory *parent)
+{
+    // Printing all the subdirectories
+    for (Directory *dir = parent->subdir_head; dir != NULL; dir = dir->next_subDir)
+    {
+        printf("%s\n", dir->name);
+    }
+
+    // Printing all the files
+    for (File *file = parent->file_head; file != NULL; file = file->nextfile)
+    {
+        printf("%s \t (%d bytes \t ownerID: %d)\n", file->name, file->size, file->ownerID);
+    }
+} */
+
+/* Lock a File 
+int lockFile(File *file, int lock_type)
+{
+    if (file->is_locked == 0)
+    {
+        file->is_locked = lock_type;
+        return 0;
+    }
+
+    else if (lock_type == 1 && file->is_locked == 1)
+    {
+        file->reader_count++;
+        return 0;
+    }
+    return 1;
+}
+*/
+
+/* Release write lock on a file 
+void write_releaseLock(File *file, int clientID)
+{
+    if (file->is_locked == 2 && file->write_client_id == clientID)
+    {
+        file->is_locked = 0;
+    }
+} */
+
+/* Release read lock on a file 
+void read_releaseLock(File *file)
+{
+    if (--file->reader_count == 0 && file->is_locked == 1)
+    {
+        file->is_locked = 0;
+    }
+} */
+
+
+
+
 
 /* Delete a file - deleteFile() */
 void deleteFile(char *filename, int clientSocketID)

@@ -1,10 +1,7 @@
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <stdio.h>
+#include "header_files.h"
 #include "params.h"
 #include "client.h"
+#include "helper_functions.h"
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
 #define BUFFER_SIZE 1024
@@ -109,24 +106,67 @@ int connectToStorageServer(const char* IP_address, const int PORT)
     return serverSocket;
 }
 
+// Sending the operation number to the connected Storage Server
+int sendOperationNumber_Path(int serverSocket, char* operation_no_path)
+{
+    // Sending the operation number
+    if(send(serverSocket, operation_no_path, strlen(operation_no_path), 0) < 0){
+        perror("sendOperationNumber_Path(): Unable to send the OPERATION NUMBER to the server");
+        close(serverSocket);
+        return -1;
+    }
+
+    // Checking if the oepration number is valid
+    char reply[100];
+    if(recv(serverSocket, reply, sizeof(reply), 0) < 0){
+        perror("sendOperationNumber_Path(): Unable to receive the acknowledgement for OPERATION_NUMBER/PATH sent to the server");
+        close(serverSocket);
+        return -1;
+    }
+
+    if(strcmp(reply, "VALID")!=0) {
+        printf("sendOperationNumber_Path(): Invalid OPERATION_NUMBER/PATH sent\n");
+        close(serverSocket);
+        return -1;
+    }
+    return 0;
+}
 
 
 ////////////////////////////// FILE OPERATION /////////////////////////////
 
-// Read file
-void readFile(char* path)
+void readFile(char* path) // Function to download the specified file
 {
-    char IP_address[20]; int PORT = 0;
+    int PORT = 0;
+    char IP_address[20]; 
+    if(fetchStorageServerIP_Port(path, IP_address, &PORT) < 0) {
+        return;
+    }
+    int serverSocket = connectToStorageServer(IP_address, PORT);
+    
+    if(sendOperationNumber_Path(serverSocket, "1") == -1) return;
+    if(sendOperationNumber_Path(serverSocket, path) == -1) return;
+
+    // Receiving the file
+    char filename[MAX_FILE_NAME_LENGTH];
+    extractFileName(path, filename);
+    downloadFile(serverSocket, filename);
+    close(socket);
+}
+
+
+void uploadFile(char* path) // Function to upload a file to the server
+{
+    int PORT = 0;
+    char IP_address[20]; 
     if(fetchStorageServerIP_Port(path, IP_address, &PORT) < 0) {
         return;
     }
 
     int serverSocket = connectToStorageServer(IP_address, PORT);
-    printf("getFile successful");
-}
-
-void uploadFile(char* path){
-
+    
+    printf("uploadFile successful");
+    close(serverSocket);
 }
 
 // To the formatted requested meta data for a file
@@ -188,57 +228,7 @@ int main()
         }
     }
 
-
-
     /*
-    if (operation==1)
-    {
-        int o=1;
-
-
-        // int new_server_port1=atoi(new_server_port);
-        
-        // int new_socket = accept(new_client_socket, (struct sockaddr*)&new_server_address, &new_server_address);
-        printf("hello\n");
-        int a=1;
-        if (send(new_client_socket, &a, sizeof(a), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-        printf("hello %s\n", file_path);
-        if (send(new_client_socket, file_path, strlen(file_path), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-        printf("hello again\n");
-        char buffer[1024]={'\0'}; // Adjust the buffer size as needed
-        ssize_t bytes_received;
-        while (1)
-        {
-            // Print the received data
-            if ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) < 0)
-            {
-                perror("Receive error");
-                close(new_client_socket);
-                exit(1);
-            }
-            else
-            {
-                if(strcmp(buffer,"STOP")==0){
-                    break;
-                }
-                printf("%s",buffer);
-            }
-        }
-        printf("ABOVE INFORMATION IS PRESENT IN FILE\n");
-        // Receive the content from the socket and print it on the terminal
-        close(new_client_socket);
-    }
-    //Closing Storage server
     else if (operation == 2) {
         int o=1;
 

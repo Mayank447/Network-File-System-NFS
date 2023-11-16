@@ -14,5 +14,6 @@
 
 #define BUFFER_LENGTH 10000 // Max length of string received from Storage Server for initialization
 #define MAX_PATH_LENGTH 1000
+#define MAX_FILE_NAME_LENGTH 256
 
 #endif
