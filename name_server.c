@@ -166,6 +166,7 @@ void* handleStorageServer(void* argument)
     }
     connectedServerSocketID = server->serverSocket;
 
+    // (TODO): Check is the storage server is still up and running by sending a pulse every second
 
     // Handling requests from storage server.  
     bzero(buffer, BUFFER_LENGTH);
@@ -218,22 +219,19 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 }
 
 
+
 /////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES //////////////////////////
 
 /* Function to handle a new client request. The function assign a thread to each accepted client. */
-void handleClients()
+void* handleClients()
 {
     while(1){
-        struct sockaddr_in client_address;
-        socklen_t address_size = sizeof(struct sockaddr_in);
-        int newClientSocket = accept(clientSocket, (struct sockaddr*)&client_address, &address_size);
+        int newClientSocket = accept(clientSocket, NULL, NULL);
         if (newClientSocket < 0) {
             perror("Error handleClients(): Client accept failed");
             continue;
-        }
-        
-        printf("Client connection request accepted from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
-        
+        }      
+
         // Create a new thread for each new client
         pthread_t clientThread;
         if (pthread_create(&clientThread, NULL, (void*)handleClientRequests, (void*)&newClientSocket) < 0) {
@@ -247,130 +245,66 @@ void handleClients()
             continue;
         }
     }
-    return;
+    return NULL;
 }
 
 /* Function to handle a client request */
-void handleClientRequests(int clientSocket){
-    char buffer[BUFFER_LENGTH];
+void* handleClientRequests(void* socket){
+    int clientSocket = *(int*)socket;
+    char buffer[BUFFER_LENGTH], response[25];; // Stores the path received from the server
+
     int bytesReceived = recv(clientSocket, &buffer, BUFFER_LENGTH, 0);
     if (bytesReceived < 0) {
         perror("Error in receiving data");
-        return;
+        return NULL;
     }
 
-    printf("Properly inside handleClientRequests\n");
-    int var_recv = 0;
-    if(var_recv == 1){
-        // code to receive file_path from client
-        bytesReceived = recv(clientSocket, buffer, BUFFER_LENGTH, 0);
-        if (bytesReceived < 0) {
-            perror("Error in receiving data");
-            exit(1);
-        }
-        buffer[bytesReceived] = '\0';
-        // printf("Requested file_path: %s\n", buffer); // debugging
-        //printf("hai 1 %s\n",buffer);
-        // Check if the file exists in the storage servers
-        struct StorageServerInfo* storageServer = searchStorageServer(buffer);
-        if (storageServer != NULL) {
-            // File found in storage server, send its details to the client
-            //printf("not null %s\n",buffer);
-            char response[1024];
-            snprintf(response, sizeof(response), "%s:%d", storageServer->ip_address, storageServer->client_server_port);
-            send(clientSocket, response, strlen(response), 0);
-        } else {
-            // File not found, send a response to the client
-            char response[1024] = "FILE NOT FOUND";
-            send(clientSocket, response, strlen(response), 0);
-        }
+    // Searching for the storage server which stores that path and sending back storage server's IP and PORT
+    struct StorageServerInfo* storageServer = searchStorageServer(buffer);
+    
+    if(storageServer == NULL){
+        strcpy(response, "0");
     }
+    else{
+        // Need to check if the storage server is still up (TODO)
+        sprintf(response, "%s:%d", storageServer->ip_address, storageServer->client_server_port);
+    }
+
+    if(send(clientSocket, response, strlen(response), 0) < 0){
+        perror("Error handleClientRequests(): Unable to send the response back");
+    }
+    close(clientSocket);
+    return NULL;
 }
+
 
 
 /////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////
 
-
-
-// Function to search for a path in storage servers
-struct StorageServerInfo* searchStorageServer(char* file_path) {
+/* Function to search for a path in storage servers */
+struct StorageServerInfo* searchStorageServer(char* file_path) 
+{
     int found = 0;
     struct StorageServerInfo* temp = storageServerList;
+    
+    // Search accessible paths in the current storage server [Linear Search]
     while (temp != NULL) {
-        // Search accessible paths in the current storage server
         int i = 0;
-        while (temp->accessible_paths[i][0] != '\0') {  // Check if the path is not an empty string
-            //printf("%s %s\n",file_path,temp->accessible_paths[i]);
-            if (strncmp(file_path, temp->accessible_paths[i],strlen(file_path)) == 0) {
+        while (temp->accessible_paths[i][0] != '\0') 
+        { 
+            if (strcmp(file_path, temp->accessible_paths[i++]) == 0) {
                 found = 1;
-                break; // Path found, no need to continue searching
+                break; 
             }
-            i++;
         }
-        if(found){
-            break;
-        }
+        if(found) break;
         temp = temp->next;
     }
 
-    if (found) {
-        printf("hai 1 path found\n");
-        return temp; // Found the path in a storage server
-    } else {
-        printf("hai path found\n");
-        return NULL; // Path not found in any storage server
-    }
+    if (found) return temp; // Found the path in a storage server
+    else return NULL; // Path not found in any storage server
 }
 
-
-
-// // Initialize a client
-// void initializeClient(const char* nameServerIP, int nameServerPort) {
-//     // Create a socket for communication with the naming server
-//     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-//     if (clientSocket < 0) {
-//         perror("Error: opening client socket\n");
-//         exit(1);
-//     }
-//     // Create a sockaddr_in structure for the naming server
-//     struct sockaddr_in nameServerAddr;
-//     memset(&nameServerAddr, 0, sizeof(nameServerAddr));
-//     nameServerAddr.sin_family = AF_INET;
-//     nameServerAddr.sin_port = htons(nameServerPort);
-//     if (inet_pton(AF_INET, nameServerIP, &nameServerAddr.sin_addr) <= 0) {
-//         perror("Error: invalid name server IP address\n");
-//         exit(1);
-//     }
-//     // Connect to the naming server
-//     if (connect(clientSocket, (struct sockaddr*)&nameServerAddr, sizeof(nameServerAddr)) < 0) {
-//         perror("Error: connecting to the naming server\n");
-//         exit(1);
-//     }
-//     // Construct a message with vital details for the current client
-//     char clientIP[16];
-//     int clientPort;
-//     // Extract client details (e.g., from user input)
-//     // For example:
-//     // sscanf(clientAddress, "%[^:]:%d", clientIP, &clientPort);
-//     char vitalDetailsMessage[1024];
-//     snprintf(vitalDetailsMessage, sizeof(vitalDetailsMessage), "IP: %s\nPORT: %d\n", clientIP, clientPort);
-//     // Send vital details to the naming server
-//     if (send(clientSocket, vitalDetailsMessage, strlen(vitalDetailsMessage), 0) < 0) {
-//         perror("Error: sending vital details to naming server\n");
-//         exit(1);
-//     }
-//     // Close the socket when done
-//     close(clientSocket);
-// }
-
-
-
-
-// Mutex for protecting the fileTable
-pthread_mutex_t fileTableMutex = PTHREAD_MUTEX_INITIALIZER;
-// Mutex for controlling server initialization
-pthread_mutex_t serverInitMutex = PTHREAD_MUTEX_INITIALIZER;
-// Sockets for clients and storage servers
 
 #define HASH_TABLE_SIZE 1000
 
@@ -598,7 +532,7 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (listen(clientSocket, NO_SERVER_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_CLIENTS_TO_LISTEN_TO) < 0){
+    if (listen(clientSocket, NO_CLIENTS_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_SERVER_TO_LISTEN_TO) < 0){
         perror("Error in listening");
         closeConnections();
         exit(EXIT_FAILURE);
@@ -618,8 +552,8 @@ int main(int argc, char* argv[])
     pthread_create(&storageServerThread, NULL, (void*)handleStorageServerInitialization, NULL);
     
     // The above function loops for ever so this end of code is never reached
-    pthread_join(clientThread, NULL);
     pthread_join(storageServerThread, NULL);
+    pthread_join(clientThread, NULL);
 
     // Wait for user input to close connections
     printf("Press Enter to close server connections...\n");

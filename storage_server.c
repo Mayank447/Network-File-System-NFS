@@ -216,7 +216,9 @@ void handleClients()
 }
 
 
-void* handleClientRequest(int clientSocket){
+void* handleClientRequest(void* argument)
+{
+    int clientSocket = *(int*)argument;
     char request[RECEIVE_BUFFER_LENGTH];
     if(recv(clientSocket, request, sizeof(request), 0) < 0){
         perror("Error handleClientRequest(): receiving request from the client");
@@ -225,7 +227,7 @@ void* handleClientRequest(int clientSocket){
 
     // Check if the request number (say should be b/t 1 to 7) is valid. That is a int and within the specified range
     int request_no = atoi(request);
-    if(request_no <= 1 && request_no >= 7){
+    if(request_no <= 1 || request_no >= 7){
         char* message = "Invalid request no.";
         if(send(clientSocket, message, strlen(message), 0) < 0){
             perror("Error handleClientRequest(): Unable to send Invalid request no.");
@@ -234,6 +236,7 @@ void* handleClientRequest(int clientSocket){
     }
 
     // Request Handler for that particular query
+    return NULL;
 }
 
 

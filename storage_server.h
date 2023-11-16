@@ -86,6 +86,6 @@ void listDirectoryContents(Directory* dir);
 
 // Functions for initialization
 int open_a_connection_port(int Port, int num_listener);
-void* handleClientRequest(int socket);
+void* handleClientRequest(void*);
 
 #endif
