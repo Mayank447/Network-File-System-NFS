@@ -22,13 +22,12 @@ void extractFileName(char *path, char *filename) {
 
 // Download a File - Receive data from a Socket and write to a File
 void downloadFile(int socket, char* filename){
-    FILE* file = fopen(filename, "wb");
+    FILE* file = fopen(filename, "w");
     if(!file){
         printf("Unable to open the FILE %s for writing\n", filename);
         close(socket);
         return;
     }
-
     int bytesReceived;
     char buffer[BUFFER_LENGTH];
     while(1)

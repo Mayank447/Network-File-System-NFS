@@ -263,7 +263,7 @@ void* handleClientRequests(void* socket){
     struct StorageServerInfo* storageServer = searchStorageServer(buffer);
     
     if(storageServer == NULL){
-        strcpy(response, "0");
+        strcpy(response, "2");
     }
     else{
         // Need to check if the storage server is still up (TODO)

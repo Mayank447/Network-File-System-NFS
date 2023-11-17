@@ -228,13 +228,18 @@ void collectAccessiblePaths()
     {
         printf("Enter an accessible path (or 'exit' to stop): ");
         fgets(path, sizeof(path), stdin);
-        if (strcmp(path, "exit\n") == 0) break;
-
+        if (strcmp(path, "exit\n") == 0) 
+            break;
+        else{
+            int index = strchr(path, '\n') - path;
+            path[index] = '\0';
+        }
+        
         int type = checkFileType(path);
 
         // Invalid path
         if(type == -1) 
-            printf("Invalid path");
+            printf("Invalid path\n");
 
         // Path corresponds to a File
         else if(type == 0) {
@@ -318,7 +323,7 @@ int receive_validateRequestNo(int clientSocket)
 }
 
 
-int validateFilePath(char* filepath, int operation_no)
+int validateFilePath(char* filepath, int operation_no, File* file)
 {
     /* Function also locks the file based on the operation number */
     File* ptr = fileHead;
@@ -327,6 +332,7 @@ int validateFilePath(char* filepath, int operation_no)
         // If the file found and the operation is to read
         if(strcmp(filepath, ptr->filepath)==0 && operation_no == 1)
         {
+            file = ptr;
             pthread_mutex_lock(&ptr->read_write_lock);
             
             //Someone is already writing to the file
@@ -368,18 +374,18 @@ int validateFilePath(char* filepath, int operation_no)
 }
 
 
-int receive_validateFilePath(int clientSocket, char* filepath, int operation_no)
+int receive_validateFilePath(int clientSocket, char* filepath, int operation_no, File* file)
 {
     // Receiving the filePath
-    if(recv(clientSocket, filepath, sizeof(filepath), 0) < 0){
+    if(recv(clientSocket, filepath, MAX_PATH_LENGTH, 0) < 0){
         perror("Error receive_validateFilePath(): Unable to receive the file path");
         close(clientSocket);
         return -1;
     } 
 
     // Validating the filepath based on return value (ERROR_CODE)
-    char response[100];
-    int valid = validateFilePath(filepath, operation_no);
+    char response[1000];
+    int valid = validateFilePath(filepath, operation_no, file);
     handleErrorCodes(valid, response);
     
     //Sending back the response
@@ -390,6 +396,17 @@ int receive_validateFilePath(int clientSocket, char* filepath, int operation_no)
     return valid;
 }
 
+// Decrease the reader count
+void decreaseReaderCount(File* file){
+    pthread_mutex_lock(&file->get_reader_count_lock);
+    
+    if(--file->reader_count == 0){
+        pthread_mutex_lock(&file->read_write_lock);
+        file->read_write = -1;
+        pthread_mutex_unlock(&file->read_write_lock);
+    }
+    pthread_mutex_unlock(&file->get_reader_count_lock);
+}
 
 void handleClients()
 {
@@ -424,25 +441,27 @@ void handleClients()
 void* handleClientRequest(void* argument)
 {
     // Receiving and validating the request no. from the client
+    File* file = NULL;
     int clientSocket = *(int*)argument;
     int request_no = receive_validateRequestNo(clientSocket);
     if(request_no == -1) return NULL;
-
+    
     // Request Handler for that particular query
     if(request_no == 1)
     {
         char filepath[MAX_PATH_LENGTH];
-        if(receive_validateFilePath(clientSocket, filepath, 1) != 0){
+        if(receive_validateFilePath(clientSocket, filepath, 1, file) != 0){
             return NULL;
         }
         sendFile_ServerToClient(filepath, clientSocket);
+        decreaseReaderCount(file);
         close(clientSocket);
         return NULL;
     }
 
     else if(request_no == 2){
         char filepath[MAX_PATH_LENGTH];
-        if(receive_validateFilePath(clientSocket, filepath, 1) != 0){
+        if(receive_validateFilePath(clientSocket, filepath, 1, file) != 0){
             return NULL;
         }
         uploadFile_ClientToServer(filepath, clientSocket);
@@ -532,39 +551,32 @@ void createDir(Directory *parent, const char *dirname)
     }
 }
 
-void sendFile_ServerToClient(char *filename, int clientSocketID)
+void sendFile_ServerToClient(char *filename, int clientSocket)
 {
-    // Need to handle file lock (TODO)
-
     // Open the file for reading on the server side
-    FILE *File = fopen(filename, "rb");  // Use "rb" for binary mode
-    if (File == NULL){
+    FILE *file = fopen(filename, "r");  // Use "rb" for binary mode
+    if (file == NULL){
         bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
         snprintf(ErrorMsg, ERROR_BUFFER_LENGTH, "File not found.");
         
-        if (send(clientSocketID, ErrorMsg, strlen(ErrorMsg), 0) < 0){
-            perror("sendFile_ServerToClient(): FILE NOT FOUND");
+        if (send(clientSocket, ErrorMsg, strlen(ErrorMsg), 0) < 0){
+            perror("Error sendFile_ServerToClient(): FILE NOT FOUND");
             close(clientSocket);
         }
     }
 
     else {
-        char buffer[1024]={'\0'};
-        while (fgets(buffer, sizeof(buffer), File) != NULL){
-            if (send(clientSocketID, buffer, sizeof(buffer), 0) < 0){
+        char buffer[1024] = {'\0'};
+        while (fgets(buffer, sizeof(buffer), file) != NULL){
+            if (send(clientSocket, buffer, sizeof(buffer), 0) < 0){
                 perror("Error sending file");
-                fclose(File);
+                fclose(file);
                 return;
             }
         }
 
-        // if (send(clientSocketID, "STOP", sizeof("STOP"), 0) < 0){
-        //     perror("Error sending file");
-        //     fclose(File);
-        //     return;
-        // }
         close(clientSocket);
-        fclose(File);
+        fclose(file);
         printf("File %s sent successfully.\n", filename);
     }
 }

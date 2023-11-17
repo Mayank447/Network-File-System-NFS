@@ -71,18 +71,22 @@ int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
         close(nsSocket);
         return -1;
     }
-
-    parseIpPort(buffer, IP_address, PORT);
     close(nsSocket);
-    return 0;
+    return parseIpPort(buffer, IP_address, PORT);
 }
 
 // IP address parsing logic based on message format "IP:PORT"
-void parseIpPort(char *data, char *ip_address,int *ss_port)
+int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
+    if(strcmp(data, "2")==0) {
+        printf("INVALID FILE PATH\n");
+        return -1;
+    }
     if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2){
         printf("Error parsing storage server info: %s\n", data);
+        return -1;
     }
+    return 0;
 }
 
 /* Connect to the storage server given the IP and PORT */
@@ -111,21 +115,21 @@ int sendOperationNumber_Path(int serverSocket, char* operation_no_path)
 {
     // Sending the operation number
     if(send(serverSocket, operation_no_path, strlen(operation_no_path), 0) < 0){
-        perror("sendOperationNumber_Path(): Unable to send the OPERATION NUMBER to the server");
+        perror("Error sendOperationNumber_Path(): Unable to send the OPERATION NUMBER to the server");
         close(serverSocket);
         return -1;
     }
 
     // Checking if the oepration number is valid
-    char reply[100];
+    char reply[1000];
     if(recv(serverSocket, reply, sizeof(reply), 0) < 0){
-        perror("sendOperationNumber_Path(): Unable to receive the acknowledgement for OPERATION_NUMBER/PATH sent to the server");
+        perror("Error sendOperationNumber_Path(): Unable to receive the acknowledgement for OPERATION_NUMBER/PATH sent to the server");
         close(serverSocket);
         return -1;
     }
 
     if(strcmp(reply, "VALID")!=0) {
-        printf("sendOperationNumber_Path(): Invalid OPERATION_NUMBER/PATH sent\n");
+        printf("Error sendOperationNumber_Path(): %s\n", reply);
         close(serverSocket);
         return -1;
     }
@@ -151,7 +155,7 @@ void readFile(char* path) // Function to download the specified file
     char filename[MAX_FILE_NAME_LENGTH];
     extractFileName(path, filename);
     downloadFile(serverSocket, filename);
-    close(socket);
+    close(serverSocket);
 }
 
 
