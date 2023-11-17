@@ -17,10 +17,10 @@ void printOperations(){
     printf("3. Read File\n");
     printf("4. Write to a File\n");
     printf("5. Obtain the metadata about a File\n");
-    printf("6. Copy File\n"); // Specify the two directory paths
     printf("6. Delete File\n");
-    printf("8. Copy Folder\n"); // Specify the two paths
-    printf("9. Delete Folder\n");
+    printf("7. Delete Folder\n");
+    printf("8. Copy File\n"); // Specify the two directory paths
+    printf("9. Copy Folder\n"); // Specify the two paths
     printf("Choose an operation: ");
     fflush(stdin);
 }
@@ -33,8 +33,6 @@ void getFilePath(char* path1){
 
 
 ///////////////////////// FETCHING AND CONNECTING TO STORAGE SERVER //////////////////
-
-/* Function to fetch the Storage Server IP and PORT given the path*/
 int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
 {   
     int nsSocket; // Socket from client side to name-server
@@ -50,6 +48,7 @@ int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
     name_server_address.sin_family = AF_INET;
     name_server_address.sin_port = htons(NAMESERVER_PORT);
     name_server_address.sin_addr.s_addr = INADDR_ANY;
+    
     if (inet_pton(AF_INET, "127.0.0.1", &name_server_address.sin_addr) < 0){
         perror("Invalid address/Address not supported");
         close(nsSocket);
@@ -78,13 +77,14 @@ int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
     return parseIpPort(buffer, IP_address, PORT);
 }
 
-// IP address parsing logic based on message format "IP:PORT"
+
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
     if(strcmp(data, "2")==0) {
         printf("INVALID FILE PATH\n");
         return -1;
     }
+    // IP address parsing format "IP:PORT"
     if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2){
         printf("Error parsing storage server info: %s\n", data);
         return -1;
@@ -92,9 +92,10 @@ int parseIpPort(char *data, char *ip_address,int *ss_port)
     return 0;
 }
 
-/* Connect to the storage server given the IP and PORT */
+
 int connectToStorageServer(const char* IP_address, const int PORT)
 {
+    /* Connect to the storage server given the IP and PORT */
     int serverSocket;
     if((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         perror("Error connectToStorageServer(): Connecting to Storage server");
@@ -113,52 +114,92 @@ int connectToStorageServer(const char* IP_address, const int PORT)
     return serverSocket;
 }
 
-// Sending the operation number to the connected Storage Server
-int sendOperationNumber_Path(int serverSocket, char* operation_no_path)
-{
-    // Sending the operation number
-    if(send(serverSocket, operation_no_path, strlen(operation_no_path), 0) < 0){
-        perror("Error sendOperationNumber_Path(): Unable to send the OPERATION NUMBER to the server");
-        close(serverSocket);
-        return -1;
-    }
 
-    // Checking if the oepration number is valid
-    char reply[1000];
-    if(recv(serverSocket, reply, sizeof(reply), 0) < 0){
-        perror("Error sendOperationNumber_Path(): Unable to receive the acknowledgement for OPERATION_NUMBER/PATH sent to the server");
-        close(serverSocket);
-        return -1;
-    }
-
-    if(atoi(reply) != 0) {
+int checkResponse(char* response){
+    // Print error based on ERROR-CODE (if response!=0)
+    if(atoi(response) != 0){
         bzero(error_message, ERROR_BUFFER_LENGTH);
-        handleErrorCodes(atoi(reply), error_message);
-        printf("Error sendOperationNumber_Path(): %s\n", error_message);
-        close(serverSocket);
+        handleErrorCodes(atoi(response), error_message);
+        printf("%s\n", error_message);
         return -1;
     }
     return 0;
 }
 
 
-////////////////////////////// FILE OPERATION /////////////////////////////
+int receiveAndCheckResponse(int serverSocket, char* error){
+    char response[20];
+    if(recv(serverSocket, response, sizeof(response), 0) < 0){
+        printf("%s\n", error);
+        close(serverSocket);
+        return -1;
+    }
 
-void createFile(char* path){
-    
+    int check = checkResponse(response);
+    if(check < 0) close(serverSocket);
+    return check;
 }
 
-void readFile(char* path) // Function to download the specified file
+
+int sendOpNumber_Path(int serverSocket, char* operation_no_path)
+{
+    /* Function to Sending the operation_number/Path to the connected Storage Server */
+    if(send(serverSocket, operation_no_path, strlen(operation_no_path), 0) < 0){
+        perror("Error sendOpNumber_Path(): Unable to send the OPERATION NUMBER to the server");
+        close(serverSocket);
+        return -1;
+    }
+
+    // Checking if the operation number is valid
+    return receiveAndCheckResponse(serverSocket, "Unable to receive the RESPONSE FROM THE SERVER");
+}
+
+
+int connectAndCheckForFileExistence(char* path, char* operation_num)
 {
     int PORT = 0;
     char IP_address[20]; 
     if(fetchStorageServerIP_Port(path, IP_address, &PORT) < 0) {
-        return;
+        return -1;
     }
+
     int serverSocket = connectToStorageServer(IP_address, PORT);
+    if(serverSocket < 0) return serverSocket;
+
+    if(sendOpNumber_Path(serverSocket, operation_num) == -1) return -1;
+    if(sendOpNumber_Path(serverSocket, path) == -1) return -1;
+    return serverSocket;
+}
+
+
+
+////////////////////////////// FILE OPERATION /////////////////////////////
+void createFile(char* path){
     
-    if(sendOperationNumber_Path(serverSocket, "3") == -1) return;
-    if(sendOperationNumber_Path(serverSocket, path) == -1) return;
+}
+
+
+void deleteFile(char* path){
+    int serverSocket = connectAndCheckForFileExistence(path, "6");
+    if(serverSocket < 0) return;
+
+    // Checking for confirmation is the server is ready to delete the file
+    int check = receiveAndCheckResponse(serverSocket, "Error deleteFile(): Unable to receive the confirmation");
+    if(check < 0) return;
+
+    // Checking for confirmation if the file was deleted
+    check = receiveAndCheckResponse(serverSocket, "Error deleteFile(): Unable to receive the confirmation");
+    if(check < 0) return;
+    
+    printf("FILE DELETED\n");
+    close(serverSocket);
+}
+
+
+void readFile(char* path) // Function to download the specified file
+{
+    int serverSocket = connectAndCheckForFileExistence(path, "3");
+    if(serverSocket < 0) return;
 
     // Receiving the file
     char filename[MAX_FILE_NAME_LENGTH];
@@ -170,15 +211,8 @@ void readFile(char* path) // Function to download the specified file
 
 void writeToFile(char* path, char* data) // Function to upload a file to the server
 {
-    int PORT = 0;
-    char IP_address[20]; 
-    if(fetchStorageServerIP_Port(path, IP_address, &PORT) < 0) {
-        return;
-    }
-
-    int serverSocket = connectToStorageServer(IP_address, PORT);
-    if(sendOperationNumber_Path(serverSocket, "4") == -1) return;
-    if(sendOperationNumber_Path(serverSocket, path) == -1) return;
+    int serverSocket = connectAndCheckForFileExistence(path, "4");
+    if(serverSocket < 0) return;
 
     // Ready to send data
     if(send(serverSocket, "0 ", 2, 0) < 0){
@@ -187,10 +221,8 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
         return;
     }
 
-    // Uploading the data to server
-    size_t data_length = strlen(data);
-
     // Break data into buffer chunks and send
+    size_t data_length = strlen(data);
     size_t sent_bytes = 0;
     size_t chunk_size = BUFFER_SIZE;
 
@@ -213,6 +245,12 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
 
     printf("Upload File successful\n");
     close(serverSocket);
+}
+
+
+void getPermissions(char* path){
+    int serverSocket = connectAndCheckForFileExistence(path, "5");
+    if(serverSocket < 0) return;
 }
 
 
@@ -261,10 +299,15 @@ int main()
         bzero(path1, MAX_PATH_LENGTH);
         bzero(path2, MAX_PATH_LENGTH);
 
-        // Creating a file specified a file path
+        // Creating a file specified a path
         if(op == 1){
             getFilePath(path1);
             createFile(path1);
+        }
+
+        // Create a folder
+        else if(op == 2){
+
         }
 
         // Reading file from a specified file path
@@ -282,99 +325,39 @@ int main()
             fgets(content, 10000, stdin);
             writeToFile(path1, content);
         }
+
+        // Get file permissions
+        else if(op == 5){
+            getFilePath(path1);
+            getPermissions(path1);  
+        }
+
+        // Delete File
+        else if(op == 6){
+            getFilePath(path1);
+            deleteFile(path1);  
+        }
+
+        // Delete Directory
+        else if(op == 7){
+
+        }
+
+        // Copy File
+        else if(op == 8){
+            getFilePath(path1);
+            // deleteFile(path1);  
+        }
+
+        // Copy Directory
+        else if(op == 9){
+            
+        }
+
+        else printf("Invalid operation\n");
     }
 
     /*
-    else if (operation == 3) {
-        // Perform file information operation
-        int o=1;
-
-        // Perform read operation
-        printf("Enter the file to get info: \n");
-
-        char file_path[256];
-        scanf("%s",file_path);
-
-        if (send(clientSocketID, &o, sizeof(o), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-
-        // Send the file path to the naming server
-        if(send(clientSocketID, file_path, strlen(file_path), 0) < 0)
-        {
-            perror("Error: sending file path to Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-        
-        // Receive IP address and port of the storage server (SS) from the naming server
-        char store[1024]={'\0'};
-        if(recv(clientSocketID, store, sizeof(store), 0) < 0)
-        {
-            perror("Error: receiving new server IP and Port from Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-
-        printf("%s\n",store);
-
-        // parse the ip address port number with delimiter a :
-        parseIpPort(store, new_server_ip, &new_server_port);
-
-        int new_client_socket;
-        struct sockaddr_in new_server_address;
-        if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        {
-            perror("Socket creation failed");
-            exit(EXIT_FAILURE);
-        }
-
-        new_server_address.sin_family = AF_INET;
-        new_server_address.sin_port = htons(new_server_port); // new_server_port1);new_server_ip
-        new_server_address.sin_addr.s_addr = INADDR_ANY;
-        if (inet_pton(AF_INET, "127.0.0.1", &new_server_address.sin_addr) < 0)
-        {
-            perror("Invalid address/Address not supported");
-            exit(EXIT_FAILURE);
-        }
-        if (connect(new_client_socket, (struct sockaddr *)&new_server_address, sizeof(new_server_address)) < 0)
-        {
-            perror("Connection to new server failed");
-            exit(EXIT_FAILURE);
-        }
-
-        int a=3;
-
-        if (send(new_client_socket, &a, sizeof(a), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-
-        if (send(new_client_socket, file_path, strlen(file_path), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-
-        char buffer[1024]={'\0'}; // Adjust the buffer size as needed
-        ssize_t bytes_received;
-        printf("File meta data: \n");
-        char  file_name[256];
-        int  file_size,  file_permissions;    
-
-        // Print the received data
-        if ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) < 0)
-        {
-            perror("Receive error");
-            close(new_client_socket);
-            exit(1);
-        }
         printf("%s\n", buffer);
         parseMetadata(buffer, file_name, &file_size, &file_permissions);
         printf("file name:%s\n",file_name);

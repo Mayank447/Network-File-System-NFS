@@ -45,6 +45,14 @@ void handleErrorCodes(int valid, char* message){
         strcpy(message, "DIRECTORY ALREADY EXIST");
     else if(valid == 10)
         strcpy(message, "INVALID OPERATION NUMBER");
+    else if(valid == 11)
+        strcpy(message, "STORAGE SERVER ERROR");
+    else if(valid == 12)
+        strcpy(message, "ERROR CREATING FILE");
+    else if(valid == 13)
+        strcpy(message, "SERVER ERROR: OPENING FILE");
+    else if(valid == 14)
+        strcpy(message, "SERVER ERROR: UNABLE TO DELETE FILE");
 }
 
 
@@ -109,7 +117,7 @@ void uploadFile(char *filename, int clientSocket)
     else {
         char buffer[1024] = {'\0'};
         while (fgets(buffer, sizeof(buffer), file) != NULL){
-            if (send(clientSocket, buffer, sizeof(buffer), 0) < 0){
+            if (send(clientSocket, buffer, strlen(buffer), 0) < 0){
                 perror("Error sending file");
                 fclose(file);
                 return;

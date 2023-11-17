@@ -19,7 +19,7 @@ File* fileHead = NULL;
 File* fileTail = NULL;
 
 int clientSocket[MAX_CLIENT_CONNECTIONS];
-char ErrorMsg[ERROR_BUFFER_LENGTH];
+char Msg[ERROR_BUFFER_LENGTH];
 char paths_file[50] = "paths_SS.txt";
 
 /* Close the socket*/
@@ -365,6 +365,10 @@ int validateFilePath(char* filepath, int operation_no, File* file)
             return 0;
         }
 
+        else if(strcmp(filepath, ptr->filepath) == 0){
+            return 0;
+        }
+
         ptr=ptr->next;
     }
     return 2;
@@ -435,8 +439,7 @@ void* handleClientRequest(void* argument)
     File file;
     int clientSocket = *(int*)argument;
     int request_no = receiveAndValidateRequestNo(clientSocket);
-    if(request_no == -1) 
-        return NULL;
+    if(request_no == -1) return NULL;
     
     //CREATE FILE
     if(request_no == 1) 
@@ -475,8 +478,18 @@ void* handleClientRequest(void* argument)
     // GET PERMISSIONS
     else if(request_no == 5){
         char filepath[MAX_PATH_LENGTH];
-        if(receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0){
+        if(receiveAndValidateFilePath(clientSocket, filepath, 5, &file, 1) == 0){
             ;
+        }
+        close(clientSocket);
+        return NULL;
+    }
+
+    // DELETE FILE
+    else if(request_no == 6){
+        char filepath[MAX_PATH_LENGTH];
+        if(receiveAndValidateFilePath(clientSocket, filepath, 6, &file, 1) == 0){
+            deleteFile(filepath, clientSocket);
         }
         close(clientSocket);
         return NULL;
@@ -509,36 +522,32 @@ void createFile(char* path, int clientSocket)
     }
 }
 
-/* Delete a file - deleteFile() */
 void deleteFile(char *filename, int clientSocketID)
 {
-    if (access(filename, F_OK) != 0)
-    { // File does not exist
-        if (send(clientSocketID, "No matching file", 17, 0) < 0)
-        {
-            perror("Unable to send message: No matching files");
-        }
-        return;
+    bzero(Msg, ERROR_BUFFER_LENGTH);
+
+    if (access(filename, F_OK) != 0)  // File does not exist
+        strcpy(Msg, "6 ");
+    else 
+        strcpy(Msg, "0 ");
+    
+    // Sending the confirmation message to client
+    if (send(clientSocketID, Msg, 2, 0) < 0){
+        perror("Error deleteFile(): Unable to file exists message");
     }
+    if(atoi(Msg) != 0) return;
 
     // Check for permission [TODO]
-    if (remove(filename) == 0)
-    {
-        if (send(clientSocketID, "File deleted successfully", 26, 0) < 0)
-        {
-            perror("Unable to send message: File deleted successfully");
-        }
-    }
-    else
-    {
-        if (send(clientSocketID, "Unable to delete the file", 26, 0) < 0)
-        {
-            perror("Unable to send message: Unable to delete the file");
-        }
+    bzero(Msg, ERROR_BUFFER_LENGTH);
+    if (remove(filename) == 0) strcpy(Msg, "0 ");
+    else strcpy(Msg, "14");
+
+    if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
+        perror("Unable to send message: File deleted successfully");
     }
 }
 
-/* Delete a folder - deleteDirectory() */
+
 void deleteDirectory(const char *path, int clientSocketID)
 {
     DIR *dir;
@@ -550,9 +559,9 @@ void deleteDirectory(const char *path, int clientSocketID)
     // if path does not exists or is not dir - exit with status -1
     if (S_ISDIR(stat_path.st_mode) == 0)
     {
-        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
-        sprintf(ErrorMsg, "Is not directory: %s\n", path);
-        if (send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0)
+        bzero(Msg, ERROR_BUFFER_LENGTH);
+        sprintf(Msg, "Is not directory: %s\n", path);
+        if (send(clientSocketID, Msg, sizeof(Msg), 0) < 0)
         {
             perror("Unable to send: Is not directory");
         }
@@ -562,9 +571,9 @@ void deleteDirectory(const char *path, int clientSocketID)
     // if not possible to read the directory for this user
     if ((dir = opendir(path)) == NULL)
     {
-        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
-        sprintf(ErrorMsg, "Can`t open directory: %s\n", path);
-        if (send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0)
+        bzero(Msg, ERROR_BUFFER_LENGTH);
+        sprintf(Msg, "Can`t open directory: %s\n", path);
+        if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
         {
             perror("Unable to send: Can`t open directory");
         }
@@ -592,11 +601,11 @@ void deleteDirectory(const char *path, int clientSocketID)
 
             if (remove(entryPath) != 0)
             {
-                bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
-                sprintf(ErrorMsg, "Error deleting file: %s", entryPath);
-                if (send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0)
+                bzero(Msg, ERROR_BUFFER_LENGTH);
+                sprintf(Msg, "Error deleting file: %s", entryPath);
+                if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
                 {
-                    printf("%s ", ErrorMsg);
+                    printf("%s ", Msg);
                     perror("Error sending message:");
                 }
             }
@@ -607,17 +616,17 @@ void deleteDirectory(const char *path, int clientSocketID)
     // Remove the empty directory after deleting its contents
     if (rmdir(path) != 0)
     {
-        bzero(ErrorMsg, ERROR_BUFFER_LENGTH);
-        sprintf(ErrorMsg, "Error: Deleting the repository %s", path);
-        if (send(clientSocketID, ErrorMsg, sizeof(ErrorMsg), 0) < 0)
+        bzero(Msg, ERROR_BUFFER_LENGTH);
+        sprintf(Msg, "Error: Deleting the repository %s", path);
+        if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
         {
-            printf("%s ", ErrorMsg);
+            printf("%s ", Msg);
             perror("Error sending message:");
         }
     }
 }
 
-/*Function to get Meta Data*/
+
 void getFileMetaData(char* filename, int clientSocketID) {
 
     char* filepath = (char*)malloc(sizeof(filename));
