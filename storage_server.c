@@ -78,6 +78,7 @@ int addFile(char* path, int check){
     return 0;
 }
 
+
 /* Check the existence of a path and whether it corresponds to a file/directory
  returns 0 in case of files and 1 in case of directories) */
 int checkFileType(char* path)
@@ -90,8 +91,8 @@ int checkFileType(char* path)
     return -1;
 }
 
+// Decrease the reader count of a particular file
 void decreaseReaderCount(File* file){
-    // Decrease the reader count of a particular file
     pthread_mutex_lock(&file->get_reader_count_lock);
     
     if(--file->reader_count == 0){
@@ -108,7 +109,6 @@ void closeWriteLock(File* file){
     file->read_write = -1;
     pthread_mutex_unlock(&file->read_write_lock);
 }
-
 
 
 /////////////////// FUNCTIONS FOR INITIALIZING THE CONNECTION WITH THE NAME SERVER /////////////////////
@@ -203,9 +203,9 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 }
 
 
+/* Function to open a connection to a PORT and accept a single connection */
 int open_a_connection_port(int Port, int num_listener)
 {
-    /* Function to open a connection to a PORT and accept a single connection */
     int socketOpened = socket(AF_INET, SOCK_STREAM, 0);
     if (socketOpened < 0){
         perror("Error open_a_connection_port: opening socket");
@@ -234,9 +234,9 @@ int open_a_connection_port(int Port, int num_listener)
 }
 
 
+/* Function to collect accessible paths from the user and store them in a file */
 void collectAccessiblePaths()
 {
-    /* Function to collect accessible paths from the user and store them in a file */
     FILE *file = fopen(paths_file, "w");
     if (file == NULL){
         perror("Error opening paths_SS.txt");
@@ -277,7 +277,6 @@ void collectAccessiblePaths()
         else{
             printf("Internal server error\n");
         }
-
     }
     fclose(file);
 }
@@ -319,7 +318,7 @@ int receiveAndValidateRequestNo(int clientSocket)
     return request_no;
 }
 
-// Check if the filepath is valid
+// Check if the filepath is valid and stored in file struct
 int validateFilePath(char* filepath, int operation_no, File* file)
 {
     /* Function also locks the file based on the operation number */
@@ -372,7 +371,6 @@ int validateFilePath(char* filepath, int operation_no, File* file)
         ptr=ptr->next;
     }
     return 2;
-
 }
 
 
@@ -436,66 +434,64 @@ void handleClients()
 void* handleClientRequest(void* argument)
 {
     // Receiving and validating the request no. from the client
-    File file;
     int clientSocket = *(int*)argument;
     int request_no = receiveAndValidateRequestNo(clientSocket);
     if(request_no == -1) return NULL;
     
-    //CREATE FILE
-    if(request_no == 1) 
-    {
-        char filepath[MAX_PATH_LENGTH];
-        if(receiveAndValidateFilePath(clientSocket, filepath, 1, &file, 0) == 0){
-            createFile(filepath, clientSocket);
-        }
-        close(clientSocket);
-        return NULL;
+    File file;
+    char filepath[MAX_PATH_LENGTH];
+
+    // CREATE FILE
+    if(request_no == 1 && receiveAndValidateFilePath(clientSocket, filepath, 1, NULL, 0) == 0) {
+        createFile(filepath, clientSocket);
     }
-    
+
+    // CREATE DIRECTORY
+    else if(request_no == 2){
+
+    }
+
     //READ FILE
-    else if(request_no == 3) 
-    {
-        char filepath[MAX_PATH_LENGTH];
-        if(receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0){
-            uploadFile(filepath, clientSocket);
-            decreaseReaderCount(&file);
-        }
-        close(clientSocket);
-        return NULL;
+    else if(request_no == 3 && receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0) {
+        uploadFile(filepath, clientSocket);
+        decreaseReaderCount(&file);
     }
 
     // WRITE FILE
     else if(request_no == 4){
-        char filepath[MAX_PATH_LENGTH];
         if(receiveAndValidateFilePath(clientSocket, filepath, 4, &file, 1) == 0){
             downloadFile(filepath, clientSocket);
             closeWriteLock(&file);
         }
-        close(clientSocket);
-        return NULL;
     }
 
     // GET PERMISSIONS
-    else if(request_no == 5){
-        char filepath[MAX_PATH_LENGTH];
-        if(receiveAndValidateFilePath(clientSocket, filepath, 5, &file, 1) == 0){
-            ;
-        }
-        close(clientSocket);
-        return NULL;
+    else if(request_no == 5 && receiveAndValidateFilePath(clientSocket, filepath, 5, NULL, 1) == 0){
+        getFileMetaData(filepath, clientSocket);
     }
 
     // DELETE FILE
-    else if(request_no == 6){
-        char filepath[MAX_PATH_LENGTH];
-        if(receiveAndValidateFilePath(clientSocket, filepath, 6, &file, 1) == 0){
-            deleteFile(filepath, clientSocket);
-        }
-        close(clientSocket);
-        return NULL;
+    else if(request_no == 6 && receiveAndValidateFilePath(clientSocket, filepath, 6, NULL, 1) == 0){
+        deleteFile(filepath, clientSocket);
     }
 
-    else return NULL;
+    // DELETE DIRECTORY
+    else if(request_no == 7){
+
+    }
+
+    // COPY FOLDER
+    else if(request_no == 8){
+
+    }
+
+    // COPY DIRECTORY
+    else if(request_no == 9){
+
+    }
+
+    close(clientSocket);
+    return NULL;
 }
 
 
@@ -522,6 +518,8 @@ void createFile(char* path, int clientSocket)
     }
 }
 
+void createDirectory(char* path, int clientSocket);
+
 void deleteFile(char *filename, int clientSocketID)
 {
     bzero(Msg, ERROR_BUFFER_LENGTH);
@@ -547,11 +545,10 @@ void deleteFile(char *filename, int clientSocketID)
     }
 }
 
-
 void deleteDirectory(const char *path, int clientSocketID)
 {
     DIR *dir;
-    struct stat stat_path, stat_entry;
+    struct stat stat_path;
     struct dirent *entry;
     // stat for the path
     stat(path, &stat_path);
@@ -626,32 +623,34 @@ void deleteDirectory(const char *path, int clientSocketID)
     }
 }
 
-
-void getFileMetaData(char* filename, int clientSocketID) {
-
-    char* filepath = (char*)malloc(sizeof(filename));
-    strcpy(filepath, filename);
-
+void getFileMetaData(char* filepath, int clientSocketID) 
+{
     struct stat fileStat;
+    char buffer[1000];
 
-   char buffer[10000];
-    int bytesReceived;
-        // Use the stat function to retrieve file metadata
-        if (stat(filepath, &fileStat) == 0) {
-            // Format file metadata into a single string
-            int n = snprintf(buffer, sizeof(buffer), "%s:%ld:%o\n", filepath, (long)fileStat.st_size, (unsigned int)(fileStat.st_mode & 0777));
-            
-            if (n < 0) {
-                perror("Error formatting file metadata");
-            }
-
-            // Send the formatted metadata
-            if (send(clientSocketID, buffer, n, 0) < 0) {
-                perror("Error sending file metadata");
-            }
-        } else {
-            perror("stat");
+    // Use the stat function to retrieve file metadata
+    if (stat(filepath, &fileStat) == 0) {
+        
+        // Format file metadata into a single string
+        // filepath : filesize : file_permissions : last_access_time : last_modification_time : creation_time
+        int n = sprintf(buffer, "%s:%ld:%o:%s:%s:%s", filepath, (long)fileStat.st_size, (unsigned int)(fileStat.st_mode & 0777), 
+                        ctime(&fileStat.st_atime), ctime(&fileStat.st_mtime), ctime(&fileStat.st_ctime));
+        
+        if (n < 0) {
+            perror("Error formatting file metadata");
+            strcpy(buffer, "11");
         }
+    }
+
+    else {
+        perror("stat");
+        strcpy(buffer, "15");
+    }
+
+    // Send the formatted metadata or error buffer
+    if (send(clientSocketID, buffer, strlen(buffer), 0) < 0) {
+        perror("Error sending file metadata");
+    }
 }
 
 // Copy files between 2 servers - copyFilesender()*/                -------------------------- implement later

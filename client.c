@@ -248,36 +248,44 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
 }
 
 
-void getPermissions(char* path){
+void getPermissions(char* path)
+{
     int serverSocket = connectAndCheckForFileExistence(path, "5");
     if(serverSocket < 0) return;
+    
+    // Receiving the file permission from the server
+    char buffer[BUFFER_LENGTH];
+    if(recv(serverSocket, buffer, BUFFER_LENGTH, 0) < 0){
+        perror("Error getPermissions(): receiving the file permission");
+        close(serverSocket);
+        return;
+    }
+
+    // Checking for an error
+    int response = atoi(buffer);
+    if(response == 11 || response == 15){
+        checkResponse(buffer);
+        return;
+    }
+    parseMetadata(buffer);
 }
 
 
 // To the formatted requested meta data for a file
-void parseMetadata(const char *data, char *filepath, int *size, int *permissions) {
-    char *token;
-    char copy[1024];
-    strcpy(copy, data); // Create a copy because strtok modifies the string
-
-    token = strtok(copy, ":");
-    if (token != NULL) {
-        strcpy(filepath, token);
-        token = strtok(NULL, ":");
-        if (token != NULL) {
-            *size = atoi(token);
-            token = strtok(NULL, ":");
-            if (token != NULL) {
-                *permissions = atoi(token);
-            } else {
-                printf("Error parsing permissions: %s\n", data);
-            }
-        } else {
-            printf("Error parsing size: %s\n", data);
-        }
-    } else {
-        printf("Error parsing filepath: %s\n", data);
-    }
+void parseMetadata(char *data) 
+{
+    // Format - filepath : filesize : file_permissions : last_access_time : last_modification_time : creation_time
+    char filepath[MAX_PATH_LENGTH], last_access_time[50], last_modified_time[50], creation_time[50];
+    long int file_size;
+    unsigned int file_permissions;
+    sscanf(data, "%[^:]:%ld:%o:%[^:]:%[^:]:%[^:]", filepath, &file_size, &file_permissions, last_access_time, last_modified_time, creation_time);
+    
+    printf("File Path: %s\n", filepath);
+    printf("File Size: %ld bytes\n", file_size);
+    printf("File Permissions: %o\n", file_permissions & 0777); // Display in octal format
+    printf("Last Access Time: %s\n", last_access_time);
+    printf("Last Modification Time: %s\n", last_modified_time);
+    printf("Last Status Change Time: %s\n", creation_time);
 }
 
 
