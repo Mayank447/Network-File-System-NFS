@@ -82,5 +82,6 @@ void listDirectoryContents(Directory* dir);
 int open_a_connection_port(int Port, int num_listener);
 void* handleClientRequest(void*);
 void requestHandler(int requestNo, int clientSocket);
+void cleanUpFileStruct();
 
 #endif

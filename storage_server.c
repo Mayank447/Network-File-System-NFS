@@ -26,6 +26,7 @@ char paths_file[50] = "paths_SS.txt";
 void closeConnection(){
     close(clientSocketID);
     close(nsSocketID);
+    cleanUpFileStruct();
 }
 
 /* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
@@ -78,6 +79,32 @@ int addFile(char* path, int check){
     return 0;
 }
 
+int removeFile(char* path){
+    File* ptr = fileHead, *ptr2;
+    if(ptr == NULL) return 0;
+
+    while(ptr->next != NULL) {
+        if(strcmp(path, ptr->next->filepath)==0) {
+            ptr2 = ptr->next;
+            ptr->next = ptr2->next;
+            free(ptr2);
+            return 1;
+        }
+        ptr=ptr->next;
+    }
+    return 0;
+}
+
+void cleanUpFileStruct(){
+    File* ptr = fileHead, *ptr2;
+    if(ptr == NULL) return;
+
+    while(ptr != NULL) {
+        ptr2 = ptr->next;
+        free(ptr);
+        ptr=ptr2;
+    }
+}
 
 /* Check the existence of a path and whether it corresponds to a file/directory
  returns 0 in case of files and 1 in case of directories) */
@@ -522,6 +549,7 @@ void createDirectory(char* path, int clientSocket);
 
 void deleteFile(char *filename, int clientSocketID)
 {
+    // (TODO) Need to remove it from file struct
     bzero(Msg, ERROR_BUFFER_LENGTH);
 
     if (access(filename, F_OK) != 0)  // File does not exist
@@ -537,7 +565,11 @@ void deleteFile(char *filename, int clientSocketID)
 
     // Check for permission [TODO]
     bzero(Msg, ERROR_BUFFER_LENGTH);
-    if (remove(filename) == 0) strcpy(Msg, "0 ");
+    if (remove(filename) == 0) {
+        strcpy(Msg, "0 ");
+        removeFile(filename);
+    }
+
     else strcpy(Msg, "14");
 
     if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
