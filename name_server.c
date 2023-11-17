@@ -40,9 +40,12 @@ struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int 
     newServer->naming_server_port = ns_port;
     newServer->client_server_port = cs_port;
     newServer->ss_id = ss_count;
+
     newServer->next = storageServerList; //Reversed linked list 
-    for (int i = 0; i < MAX_NO_ACCESSIBLE_PATHS; i++)
-    {
+    newServer->redundantSS_1 = NULL;
+    newServer->redundantSS_2 = NULL;
+
+    for (int i = 0; i < MAX_NO_ACCESSIBLE_PATHS; i++){
         newServer->accessible_paths[i][0] = '\0';
     }
     storageServerList = newServer;

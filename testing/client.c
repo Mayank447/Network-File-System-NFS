@@ -155,7 +155,7 @@ int sendOperationNumber_Path(int serverSocket, char* operation_no_path)
         return -1;
     }
 
-    if(atoi(reply) != 0) {
+    if(strcmp(reply, "0")!=0) {
         bzero(error_message, ERROR_BUFFER_LENGTH);
         handleErrorCodes(atoi(reply), error_message);
         printf("Error sendOperationNumber_Path(): %s\n", error_message);

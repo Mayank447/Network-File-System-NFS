@@ -5,12 +5,14 @@
 #define MAX_LENGTH_OF_ACCESSIBLE_PATH 300
 struct StorageServerInfo{
     int ss_id;
+    int serverSocket;
     char ip_address[256];
     int naming_server_port;
     int client_server_port;
     char accessible_paths[MAX_NO_ACCESSIBLE_PATHS][MAX_LENGTH_OF_ACCESSIBLE_PATH];
-    struct StorageServerInfo *next;
-    int serverSocket;
+    struct StorageServerInfo* next;
+    struct StorageServerInfo* redundantSS_1;
+    struct StorageServerInfo* redundantSS_2;
 };
 
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port);

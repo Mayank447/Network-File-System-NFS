@@ -61,7 +61,7 @@ struct StorageServer {
 char ErrorMsg[1024];
 
 // Functions for files
-void createFile(Directory* parent, const char* filename, int ownerID);
+void createFile(char* path, int clientSocketID);
 int uploadFile_ClientToServer(char* filename, int clientSocketID);
 void sendFile_ServerToClient(char* filename, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
