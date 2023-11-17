@@ -253,10 +253,10 @@ void* handleClients()
 
 /* Function to handle a client request */
 void* handleClientRequests(void* socket){
-    int clientSocket = *(int*)socket;
+    int client_socket = *(int*)socket;
     char buffer[BUFFER_LENGTH], response[25];; // Stores the path received from the server
 
-    int bytesReceived = recv(clientSocket, &buffer, BUFFER_LENGTH, 0);
+    int bytesReceived = recv(client_socket, &buffer, BUFFER_LENGTH, 0);
     if (bytesReceived < 0) {
         perror("Error in receiving data");
         return NULL;
@@ -273,10 +273,10 @@ void* handleClientRequests(void* socket){
         sprintf(response, "%s:%d", storageServer->ip_address, storageServer->client_server_port);
     }
 
-    if(send(clientSocket, response, strlen(response), 0) < 0){
+    if(send(client_socket, response, strlen(response), 0) < 0){
         perror("Error handleClientRequests(): Unable to send the response back");
     }
-    close(clientSocket);
+    close(client_socket);
     return NULL;
 }
 

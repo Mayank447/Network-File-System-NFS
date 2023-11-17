@@ -4,7 +4,6 @@
 #include "helper_functions.h"
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
-#define ERROR_BUFFER_LENGTH 1024
 #define BUFFER_SIZE 1024
 
 char error_message[ERROR_BUFFER_LENGTH];
@@ -22,7 +21,8 @@ void printOperations(){
     printf("6. Delete File\n");
     printf("8. Copy Folder\n"); // Specify the two paths
     printf("9. Delete Folder\n");
-    printf("Choose anoperation: ");
+    printf("Choose an operation: ");
+    fflush(stdin);
 }
 
 // Function to get the file path from the user
@@ -33,30 +33,6 @@ void getFilePath(char* path1){
 
 
 ///////////////////////// FETCHING AND CONNECTING TO STORAGE SERVER //////////////////
-void handleErrorCodes(int valid, char* message){
-    if(valid == 0) 
-        strcpy(message, "VALID");
-    else if(valid == 1)
-        strcpy(message, "NAMESERVER ERROR");
-    else if(valid == 2) 
-        strcpy(message, "PATH DOES NOT EXIST");
-    else if(valid == 3)
-        strcpy(message, "STORAGE SERVER IS DOWN");
-    else if(valid == 4)
-        strcpy(message, "A CLIENT IS ALREADY READING THE FILE");
-    else if(valid == 5)
-        strcpy(message, "A CLIENT IS ALREADY WRITING TO THE FILE");
-    else if(valid == 6)
-        strcpy(message, "FILE DOES NOT EXIST");
-    else if(valid == 7)
-        strcpy(message, "FILE ALREADY EXISTS");
-    else if(valid == 8)
-        strcpy(message, "DIRECTORY DOES NOT EXIST");
-    else if(valid == 9)
-        strcpy(message, "DIRECTORY ALREADY EXIST");
-    else if(valid == 10)
-        strcpy(message, "INVALID OPERATION NUMBER");
-}
 
 /* Function to fetch the Storage Server IP and PORT given the path*/
 int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
@@ -187,12 +163,12 @@ void readFile(char* path) // Function to download the specified file
     // Receiving the file
     char filename[MAX_FILE_NAME_LENGTH];
     extractFileName(path, filename);
-    downloadFile(serverSocket, filename);
+    downloadFile(filename, serverSocket);
     close(serverSocket);
 }
 
 
-void writeToFile(char* path) // Function to upload a file to the server
+void writeToFile(char* path, char* data) // Function to upload a file to the server
 {
     int PORT = 0;
     char IP_address[20]; 
@@ -204,9 +180,41 @@ void writeToFile(char* path) // Function to upload a file to the server
     if(sendOperationNumber_Path(serverSocket, "4") == -1) return;
     if(sendOperationNumber_Path(serverSocket, path) == -1) return;
 
-    printf("uploadFile successful");
+    // Ready to send data
+    if(send(serverSocket, "0 ", 2, 0) < 0){
+        perror("Error writeToFile(): Unable to send ready to send message");
+        close(serverSocket);
+        return;
+    }
+
+    // Uploading the data to server
+    size_t data_length = strlen(data);
+
+    // Break data into buffer chunks and send
+    size_t sent_bytes = 0;
+    size_t chunk_size = BUFFER_SIZE;
+
+    while (sent_bytes < data_length)
+    {
+        // Determine the size of the current chunk
+        size_t remaining_bytes = data_length - sent_bytes;
+        size_t current_chunk_size = (remaining_bytes < chunk_size) ? remaining_bytes : chunk_size;
+
+        // Send the current chunk
+        ssize_t bytes_sent = send(serverSocket, data + sent_bytes, current_chunk_size, 0);
+        printf("%zd\n", bytes_sent);
+
+        if (bytes_sent == -1) {
+            perror("Error writeToFile(): Send failed");
+            break;
+        }
+        sent_bytes += bytes_sent; // Update the total sent bytes
+    }
+
+    printf("Upload File successful\n");
     close(serverSocket);
 }
+
 
 // To the formatted requested meta data for a file
 void parseMetadata(const char *data, char *filepath, int *size, int *permissions) {
@@ -270,126 +278,14 @@ int main()
             getFilePath(path1);
             char content[10000];
             printf("Enter the contents of the File: ");
+            fflush(stdin);
             fgets(content, 10000, stdin);
-            writeToFile(path1);
+            writeToFile(path1, content);
         }
     }
 
     /*
-    else if (operation == 2) {
-        int o=1;
-
-        // Perform read operation
-        printf("Enter the file path to write: \n");
-
-        char file_path[256];
-        scanf("%s",file_path);
-
-        if (send(clientSocketID, &o, sizeof(o), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-
-        // Send the file path to the naming server
-        if(send(clientSocketID, file_path, strlen(file_path), 0) < 0)
-        {
-            perror("Error: sending file path to Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-        
-        // Receive IP address and port of the storage server (SS) from the naming server
-        char store[1024]={'\0'};
-        if(recv(clientSocketID, store, sizeof(store), 0) < 0)
-        {
-            perror("Error: receiving new server IP and Port from Naming Server\n");
-            close(clientSocketID);
-            return -1;
-        }
-
-        printf("%s\n",store);
-
-        // parse the ip address port number with delimiter a :
-        parseIpPort(store, NameServerIP, &new_server_port);
-
-        int new_client_socket;
-        struct sockaddr_in new_server_address;
-        if ((new_client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        {
-            perror("Socket creation failed");
-            exit(EXIT_FAILURE);
-        }
-
-        new_server_address.sin_family = AF_INET;
-        new_server_address.sin_port = htons(new_server_port); // new_server_port1);new_server_ip
-        new_server_address.sin_addr.s_addr = INADDR_ANY;
-        if (inet_pton(AF_INET, "127.0.0.1", &new_server_address.sin_addr) < 0)
-        {
-            perror("Invalid address/Address not supported");
-            exit(EXIT_FAILURE);
-        }
-        if (connect(new_client_socket, (struct sockaddr *)&new_server_address, sizeof(new_server_address)) < 0)
-        {
-            perror("Connection to new server failed");
-            exit(EXIT_FAILURE);
-        }
-
-        int a=2;
-
-        if (send(new_client_socket, &a, sizeof(a), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-
-        if (send(new_client_socket, file_path, strlen(file_path), 0) < 0)
-        {
-            perror("Error: sending completed message to Naming Server\n");
-            close(new_client_socket);
-            return -1;
-        }
-
-        char buffer[1024]={'\0'}; // Adjust the buffer size as needed
-        ssize_t bytes_received;
-        printf("Enter data to add to file: \n");
-
-        char input_data[10000];
-
-        while(1)
-        {
-            scanf("%[^\n]s",input_data);
-
-            // send data to append to file
-            if(send(new_client_socket, input_data, strlen(input_data), 0) < 0)
-            {
-                perror("Send error");
-                close(new_client_socket);
-                exit(1);
-            }
-
-            if(strcmp(input_data, "STOP") == 0)
-            {
-                break;
-            }
-        }
-        
-        // Print the received data
-        if ((bytes_received = recv(new_client_socket, buffer, sizeof(buffer), 0)) < 0)
-        {
-            perror("Receive error");
-            close(new_client_socket);
-            exit(1);
-        }
-
-        printf("%s\n", buffer);
-        printf("ABOVE INFORMATION IS WRITTEN TO THE FILE\n");
-        // Receive the content from the socket and print it on the terminal
-        close(new_client_socket);
-        
-    } else if (operation == 3) {
+    else if (operation == 3) {
         // Perform file information operation
         int o=1;
 

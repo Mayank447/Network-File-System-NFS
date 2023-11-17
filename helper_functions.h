@@ -8,6 +8,12 @@ void trim(char *str);
 void extractFileName(char *path, char *filename); 
 
 // Download a File - Receive data from a Socket and write to a File
-void downloadFile(int socket, char* filename); 
+void downloadFile(char* filename, int socket); 
+
+// Upload a File - Read a File and send data to a Socket
+void uploadFile(char* filename, int socket); 
+
+// print the error based on the valid bit to message string
+void handleErrorCodes(int valid, char* message);
 
 #endif
