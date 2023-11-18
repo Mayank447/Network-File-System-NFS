@@ -4,8 +4,8 @@
 #include "helper_functions.h"
 
 int clientSocket, storageServerSocket; // Sockets for handling storage server queries and client requests
-pthread_t* storageServerThreads; //Thread for direct communication with a Storage server
-pthread_t* clientThreads; //Thread for direct communication with a client
+pthread_t* storageServerThreads;       //Thread for direct communication with a Storage server
+pthread_t* clientThreads;              //Thread for direct communication with a client
 
 // Arguments to send while creating a Storage server thread
 struct storageServerArg{
@@ -13,26 +13,28 @@ struct storageServerArg{
     int ss_id;
 };
 
-void closeConnections(){ // Function to close server and client connection sockets
+// Function to close server and client connection sockets
+void closeConnections(){ 
     close(clientSocket);
     close(storageServerSocket);
 }
 
-/* Signal handler in case Ctrl-Z or Ctrl-D is pressed -> so that the socket gets closed */
+/* Signal handler in case Ctrl-C or Ctrl-D is pressed -> so that the socket gets closed */
 void handle_signal(int signum) {
     closeConnections();
     exit(signum);
 }
 
-///////////////////////// STORAGE SERVER INITIALIZATION///////////////////////////
 
-int ss_count = 0; // Count of no. of storage servers
-pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;
+///////////////////////////// STORAGE SERVER INITIALIZATION/////////////////////////////
+int ss_count = 0;                                                   // Count of no. of storage servers
+pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;          // Lock for the above
 
-struct StorageServerInfo *storageServerList = NULL; // Head of linked list(reversed) of storage server
-// TODO - Need to implement a lock for storageServerHead and each storageServer
+struct StorageServerInfo *storageServerList = NULL;                 // Head of linked list(reversed) of storage server
+pthread_mutex_t storageServerHead_lock = PTHREAD_MUTEX_INITIALIZER; // Lock for the above
 
-/* Function to add storage server (meta) information to the linked list */
+
+// Function to add storage server (meta) information to the linked list
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port)
 {
     struct StorageServerInfo *newServer = (struct StorageServerInfo *)malloc(sizeof(struct StorageServerInfo));
@@ -40,20 +42,25 @@ struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int 
     newServer->naming_server_port = ns_port;
     newServer->client_server_port = cs_port;
     newServer->ss_id = ss_count;
-
-    newServer->next = storageServerList; //Reversed linked list 
-    newServer->redundantSS_1 = NULL;
-    newServer->redundantSS_2 = NULL;
+    newServer->count_accessible_paths = 0;
 
     for (int i = 0; i < MAX_NO_ACCESSIBLE_PATHS; i++){
         newServer->accessible_paths[i][0] = '\0';
     }
+
+    newServer->redundantSS_1 = NULL;
+    newServer->redundantSS_2 = NULL;
+
+    pthread_mutex_lock(&storageServerHead_lock);
+    newServer->next = storageServerList; //Reversed linked list 
     storageServerList = newServer;
+    pthread_mutex_unlock(&storageServerHead_lock);
+    
     return newServer;
 }
 
 
-/* Thread handler for storage server request/queries (General/open handler) */
+// Thread handler for storage server request/queries (General/open handler)
 void* handleStorageServerInitialization()
 {   
     struct storageServerArg args[MAX_SERVERS];
@@ -67,7 +74,7 @@ void* handleStorageServerInitialization()
             continue;
         }
 
-        printf("Connection accepted from %s:%d\n", inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
+        printf("Storage Server Connection accepted from %s:%d\n", inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
         
         // Create a new thread for each storage server
         args[ss_count].socket = serverSocket;
@@ -93,7 +100,7 @@ void* handleStorageServerInitialization()
 }
 
 
-/* Individual thread handler for a server*/
+// Individual thread handler for a server
 void* handleStorageServer(void* argument)
 {
     struct storageServerArg* args = (struct storageServerArg*)argument;
@@ -142,15 +149,16 @@ void* handleStorageServer(void* argument)
         else if (receivingInfo == 1){
             parseStorageServerInfo(token, ip_address, &naming_server_port, &client_server_port); 
             server = addStorageServerInfo(ip_address, naming_server_port, client_server_port); // Add the information to the linked list
-            
             receivingInfo = 2; //Ready to receive all the accessible paths
-            pathIndex = 0;
         }
 
         // Receiving accessible paths
-        else if (receivingInfo == 2 && pathIndex >= 0 && pathIndex < MAX_NO_ACCESSIBLE_PATHS){
-            strcpy(server->accessible_paths[pathIndex++], token);
-            printf("naming server storage:%s\n", token);
+        else if (receivingInfo == 2){
+            pthread_mutex_lock(&server->count_accessible_path_lock);
+            if((server->count_accessible_paths >= 0 && server->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)){
+                strcpy(server->accessible_paths[server->count_accessible_paths++], token);
+            }
+            pthread_mutex_unlock(&server->count_accessible_path_lock);
         }
 
         token = strtok(NULL, ":");
@@ -183,7 +191,7 @@ void* handleStorageServer(void* argument)
 }
 
 
-/* Function to initialize the connection to storage servers with the specified PORT number*/
+// Function to initialize the connection to storage servers with the specified PORT number
 int initConnectionToStorageServer(struct StorageServerInfo* server)
 {
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -211,6 +219,7 @@ int initConnectionToStorageServer(struct StorageServerInfo* server)
     return serverSocket; // Return the connected socket
 }
 
+
 // Function to parse the storage server parameters  [Need to check for validity of the sent data i.e. no. of digits]
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port)
 {
@@ -222,10 +231,68 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 }
 
 
+// Function to add an accessible path
+int addAccessiblePath(int ss_id, char* path)
+{
+    pthread_mutex_lock(&storageServerHead_lock);
+    struct StorageServerInfo* ptr = storageServerList;
+    pthread_mutex_unlock(&storageServerHead_lock);
+    
+    while(ptr != NULL){
+        pthread_mutex_lock(&ptr->count_accessible_path_lock);
+        if(ptr->ss_id == ss_id && ptr->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)
+        {
+            for(int j=0; j<MAX_NO_ACCESSIBLE_PATHS; j++){
+                if(ptr->accessible_paths[j][0] == '\0'){
+                    strcpy(ptr->accessible_paths[j], path);
+                    ptr->count_accessible_paths++;
+                    pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+                    return 0;
+                }
+            }
+            pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+            return -1;
+        }
+        pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+        ptr = ptr->next;
+    } 
+    return -1;
+}
 
-/////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES //////////////////////////
 
-/* Function to handle a new client request. The function assign a thread to each accepted client. */
+// Function to delete an accessible path
+int deleteAccessiblePath(int ss_id, char* path)
+{
+    pthread_mutex_lock(&storageServerHead_lock);
+    struct StorageServerInfo* ptr = storageServerList;
+    pthread_mutex_unlock(&storageServerHead_lock);
+    
+    while(ptr != NULL){
+        pthread_mutex_lock(&ptr->count_accessible_path_lock);
+        if(ptr->ss_id == ss_id && ptr->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)
+        {
+            for(int j=0; j<MAX_NO_ACCESSIBLE_PATHS; j++){
+                if(strcmp(ptr->accessible_paths[j], path) == 0){
+                    ptr->accessible_paths[j][0] = '\0';
+                    ptr->count_accessible_paths--;
+                    pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+                    return 0;
+                }
+            }
+            pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+            return -1;
+        }
+        pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+        ptr = ptr->next;
+    } 
+    return -1;
+}
+
+
+
+/////////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES ///////////////////////////////////
+
+// Function to handle a new client request. The function assign a thread to each accepted client. */
 void* handleClients()
 {
     while(1){
@@ -251,7 +318,7 @@ void* handleClients()
     return NULL;
 }
 
-/* Function to handle a client request */
+// Function to handle a client request
 void* handleClientRequests(void* socket){
     int client_socket = *(int*)socket;
     char buffer[BUFFER_LENGTH], response[25];; // Stores the path received from the server
@@ -281,14 +348,19 @@ void* handleClientRequests(void* socket){
 }
 
 
+// void createFile(){
+
+// }
 
 /////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////
 
-/* Function to search for a path in storage servers */
+// Function to search for a path in storage servers */
 struct StorageServerInfo* searchStorageServer(char* file_path) 
 {
     int found = 0;
+    pthread_mutex_lock(&storageServerHead_lock);
     struct StorageServerInfo* temp = storageServerList;
+    pthread_mutex_unlock(&storageServerHead_lock);
     
     // Search accessible paths in the current storage server [Linear Search]
     while (temp != NULL) {
