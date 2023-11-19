@@ -23,5 +23,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include "params.h"
+#include "error_codes.h"
+#include "helper_functions.h"
 
 #endif

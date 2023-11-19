@@ -37,7 +37,7 @@ int validateFilePath(char* filepath, int operation_no, File* file)
             //Someone is already writing to the file
             if(ptr->read_write == 1) {
                 pthread_mutex_unlock(&ptr->read_write_lock);
-                return 5; 
+                return ERROR_A_CLIENT_ALREADY_WRITING_TO_FILE; 
             }
             else ptr->read_write = 0;
             
@@ -59,7 +59,7 @@ int validateFilePath(char* filepath, int operation_no, File* file)
             // Someone is already reading the file
             if(ptr->read_write == 0){
                 pthread_mutex_unlock(&ptr->read_write_lock);
-                return 4;
+                return ERROR_A_CLIENT_ALREADY_READING_THE_FILE;
             }
             else ptr->read_write = 1;
 
@@ -73,20 +73,22 @@ int validateFilePath(char* filepath, int operation_no, File* file)
 
         ptr=ptr->next;
     }
-    return 2;
+    return ERROR_PATH_DOES_NOT_EXIST;
 }
 
 
 // Decrease the reader count of a particular file
-void decreaseReaderCount(File* file){
+void decreaseReaderCount(File* file)
+{
+    pthread_mutex_lock(&file->read_write_lock);
     pthread_mutex_lock(&file->get_reader_count_lock);
     
-    if(--file->reader_count == 0){
-        pthread_mutex_lock(&file->read_write_lock);
+    printf("Reader_count: %d", file->reader_count);
+    if(file->read_write != 1 && --file->reader_count == 0){
         file->read_write = -1;
-        pthread_mutex_unlock(&file->read_write_lock);
     }
     pthread_mutex_unlock(&file->get_reader_count_lock);
+    pthread_mutex_unlock(&file->read_write_lock);
 }
 
 
@@ -96,7 +98,7 @@ int addFile(char* path, int check)
     // Check if the path is not already stored in the storage server
     if(check && checkFilePathExists(path)) {
         printf("FILE already exists in Accessible path list\n");
-        return 7;
+        return ERROR_FILE_ALREADY_EXISTS;
     }
 
     // Creating a new File struct if the path is not already stored
@@ -107,10 +109,10 @@ int addFile(char* path, int check)
     newFile->next = NULL;
 
     if(pthread_mutex_init(&newFile->get_reader_count_lock, NULL) < 0 ||
-        pthread_mutex_init(&newFile->read_write_lock, NULL))
+        pthread_mutex_init(&newFile->read_write_lock, NULL)< 0)
     {
-        printf("Error addFile(): Unable to initialize mutex lock\n");
-        return 11;
+        printf("[-] Error addFile(): Unable to initialize mutex lock\n");
+        return STORAGE_SERVER_DOWN;
     }
     
     // Adding it to the File struct linked list
@@ -124,6 +126,7 @@ int addFile(char* path, int check)
     fileTail = newFile;
     return 0;
 }
+
 
 // Function to remove the file from file struct
 int removeFile(char* path){
@@ -181,6 +184,12 @@ int checkFileType(char* path)
 }
 
 
+// Returns 1 is the file exists
+int fileExists(char *filename) {
+    return access(filename, F_OK) != -1;
+}
+
+
 // Function to create a File
 void createFile(char* path, int clientSocket)
 {
@@ -199,7 +208,7 @@ void createFile(char* path, int clientSocket)
     }
 
     if(send(clientSocket, response, strlen(response), 0) < 0){
-        perror("Error createFile(): Send reponse failed");
+        perror("[-] Error createFile(): Send reponse failed");
     }
 }
 
@@ -219,19 +228,19 @@ void getFileMetaData(char* filepath, int clientSocketID)
                         ctime(&fileStat.st_atime), ctime(&fileStat.st_mtime), ctime(&fileStat.st_ctime));
         
         if (n < 0) {
-            perror("Error formatting file metadata");
-            strcpy(buffer, "11");
+            perror("[-] [-] Error formatting file metadata");
+            sprintf(buffer, "%d", STORAGE_SERVER_ERROR);
         }
     }
 
     else {
-        perror("stat");
-        strcpy(buffer, "15");
+        perror("[-] stat");
+        sprintf(buffer, "%d", ERROR_GETTING_FILE_PERMISSIONS);
     }
 
     // Send the formatted metadata or error buffer
     if (send(clientSocketID, buffer, strlen(buffer), 0) < 0) {
-        perror("Error sending file metadata");
+        perror("[-] [-] Error sending file metadata");
     }
 }
 
@@ -239,31 +248,34 @@ void getFileMetaData(char* filepath, int clientSocketID)
 // Function to delete a File
 void deleteFile(char *filename, int clientSocketID)
 {
-    // (TODO) Need to remove it from file struct
     bzero(Msg, ERROR_BUFFER_LENGTH);
 
-    if (access(filename, F_OK) != 0)  // File does not exist
-        strcpy(Msg, "6 ");
-    else 
-        strcpy(Msg, "0 ");
+    // File does not exist
+    if (access(filename, F_OK) != 0) { 
+        sprintf(Msg, "%d", ERROR_FILE_DOES_NOT_EXIST);
+    }
+    else {
+        sprintf(Msg, "%d", VALID);
+    }
     
     // Sending the confirmation message to client
-    if (send(clientSocketID, Msg, 2, 0) < 0){
-        perror("Error deleteFile(): Unable to file exists message");
+    if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
+        perror("[-] Error deleteFile(): Unable to file exists message");
+        return;
     }
-    if(atoi(Msg) != 0) return;
+    if(strcmp(Msg,"0")==0) return;
 
     // Check for permission [TODO]
     bzero(Msg, ERROR_BUFFER_LENGTH);
     if (remove(filename) == 0) {
-        strcpy(Msg, "0 ");
+        sprintf(Msg, "%d", VALID);
         removeFile(filename);
     }
 
-    else strcpy(Msg, "14");
+    else sprintf(Msg, "%d", ERROR_UNABLE_TO_DELETE_FILE);
 
     if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
-        perror("Unable to send message: File deleted successfully");
+        perror("[-] Unable to send message: File deleted successfully");
     }
 }
 
@@ -272,7 +284,7 @@ void deleteFile(char *filename, int clientSocketID)
 // int copyFile_sender(const char *sourcePath, struct sockaddr_in server_address) {
 //     int serverSocket;
 //     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-//         perror("Error connecting to server");
+//         perror("[-] Error connecting to server");
 //         return 1;
 //     }
 //     sendFile_server_to_client(sourcePath, serverSocket);
@@ -282,7 +294,7 @@ void deleteFile(char *filename, int clientSocketID)
 // int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
 //     int serverSocket;
 //     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-//         perror("Error connecting to server");
+//         perror("[-] Error connecting to server");
 //         return 1;
 //     }
 //     uploadFile_client_to_server(destinationPath, serverSocket);

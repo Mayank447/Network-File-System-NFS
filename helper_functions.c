@@ -3,6 +3,60 @@
 
 char error_message[1024];
 
+// Function to handle the error codes based on Nameserver/storage server response
+void handleErrorCodes(char* response, char* message)
+{
+    int valid = atoi(response);
+
+    if(strcmp(response, "0") == 0) 
+        strcpy(message, "VALID");
+
+    else if(valid == NAME_SERVER_ERROR)
+        strcpy(message, "NAMESERVER ERROR");
+
+    else if(valid == ERROR_PATH_DOES_NOT_EXIST) 
+        strcpy(message, "PATH DOES NOT EXIST");
+
+    else if(valid == STORAGE_SERVER_DOWN)
+        strcpy(message, "STORAGE SERVER IS DOWN");
+
+    else if(valid == ERROR_A_CLIENT_ALREADY_READING_THE_FILE)
+        strcpy(message, "A CLIENT IS ALREADY READING THE FILE");
+
+    else if(valid == ERROR_A_CLIENT_ALREADY_WRITING_TO_FILE)
+        strcpy(message, "A CLIENT IS ALREADY WRITING TO THE FILE");
+
+    else if(valid == ERROR_DIRECTORY_DOES_NOT_EXIST)
+        strcpy(message, "FILE DOES NOT EXIST");
+
+    else if(valid == ERROR_DIRECTORY_ALREADY_EXISTS)
+        strcpy(message, "FILE ALREADY EXISTS");
+
+    else if(valid == ERROR_DIRECTORY_DOES_NOT_EXIST)
+        strcpy(message, "DIRECTORY DOES NOT EXIST");
+
+    else if(valid == ERROR_DIRECTORY_ALREADY_EXISTS)
+        strcpy(message, "DIRECTORY ALREADY EXIST");
+
+    else if(valid == ERROR_INVALID_REQUEST_NUMBER)
+        strcpy(message, "INVALID OPERATION NUMBER");
+
+    else if(valid == STORAGE_SERVER_ERROR)
+        strcpy(message, "STORAGE SERVER ERROR");
+
+    else if(valid == ERROR_CREATING_FILE)
+        strcpy(message, "ERROR CREATING FILE");
+
+    else if(valid == ERROR_OPENING_FILE)
+        strcpy(message, "SERVER ERROR: OPENING FILE");
+
+    else if(valid == ERROR_UNABLE_TO_DELETE_FILE)
+        strcpy(message, "SERVER ERROR: UNABLE TO DELETE FILE");
+
+    else if(valid == ERROR_GETTING_FILE_PERMISSIONS)
+        strcpy(message, "SERVER ERROR: ERROR GETTING FILE PERMISSIONS");
+}
+
 // Remove leading whitespaces
 void trim(char *str) {
     int i=0, j=0, len = strlen(str);
@@ -22,41 +76,6 @@ void extractFileName(char *path, char *filename) {
     }
 }
 
-void handleErrorCodes(int valid, char* message){
-    if(valid == 0) 
-        strcpy(message, "VALID");
-    else if(valid == 1)
-        strcpy(message, "NAMESERVER ERROR");
-    else if(valid == 2) 
-        strcpy(message, "PATH DOES NOT EXIST");
-    else if(valid == 3)
-        strcpy(message, "STORAGE SERVER IS DOWN");
-    else if(valid == 4)
-        strcpy(message, "A CLIENT IS ALREADY READING THE FILE");
-    else if(valid == 5)
-        strcpy(message, "A CLIENT IS ALREADY WRITING TO THE FILE");
-    else if(valid == 6)
-        strcpy(message, "FILE DOES NOT EXIST");
-    else if(valid == 7)
-        strcpy(message, "FILE ALREADY EXISTS");
-    else if(valid == 8)
-        strcpy(message, "DIRECTORY DOES NOT EXIST");
-    else if(valid == 9)
-        strcpy(message, "DIRECTORY ALREADY EXIST");
-    else if(valid == 10)
-        strcpy(message, "INVALID OPERATION NUMBER");
-    else if(valid == 11)
-        strcpy(message, "STORAGE SERVER ERROR");
-    else if(valid == 12)
-        strcpy(message, "ERROR CREATING FILE");
-    else if(valid == 13)
-        strcpy(message, "SERVER ERROR: OPENING FILE");
-    else if(valid == 14)
-        strcpy(message, "SERVER ERROR: UNABLE TO DELETE FILE");
-    else if(valid == 15)
-        strcpy(message, "SERVER ERROR: ERROR GETTING FILE PERMISSIONS");
-}
-
 
 int createRecvThread(int serverSocket)
 {
@@ -72,7 +91,7 @@ int createRecvThread(int serverSocket)
     
     if(pthread_join(receiveThread, NULL) == 0){
         char message[BUFFER_LENGTH];
-        handleErrorCodes(atoi(buffer), message);
+        handleErrorCodes(buffer, message);
         return atoi(buffer);
     } 
     else
@@ -86,7 +105,7 @@ void* receiveConfirmation(int serverSocket, char* buffer)
 {
     // Receiving the confirmation for storage server's side
     if(recv(serverSocket, buffer, sizeof(buffer), 0) < 0){
-        perror("Error createFile(): Unable to receive the confirmation from server's side");
+        perror("[-] Error createFile(): Unable to receive the confirmation from server's side");
     }
     return NULL;
 }
@@ -105,14 +124,14 @@ void downloadFile(char* filename, int socket)
     int bytesReceived;
     char buffer[BUFFER_LENGTH];
     if(recv(socket, buffer, 2, 0) < 0){
-        perror("Error downloadFile(): Unable to receive the file open confirmation");
+        perror("[-] Error downloadFile(): Unable to receive the file open confirmation");
         fclose(file);
         return;
     }
 
     if(atoi(buffer) != 0){
         bzero(error_message, 1024);
-        handleErrorCodes(atoi(buffer), error_message);
+        handleErrorCodes(buffer, error_message);
         printf("Error: %s\n", error_message);
     }
 
@@ -122,7 +141,7 @@ void downloadFile(char* filename, int socket)
         bytesReceived = recv(socket, buffer, sizeof(buffer), 0);
         if(bytesReceived == 0) break;
         if(bytesReceived < 0){
-            perror("Error downloadFile(): Unable to receive the file data");
+            perror("[-] Error downloadFile(): Unable to receive the file data");
             break;
         }
 
@@ -147,14 +166,14 @@ void uploadFile(char *filename, int clientSocket)
     else sprintf(error_message, "0");
 
     if (send(clientSocket, error_message, strlen(error_message), 0) < 0){
-        perror("Error UploadingFile(): Unable to send file opened message");
+        perror("[-] Error UploadingFile(): Unable to send file opened message");
     }
 
     else {
         char buffer[1024] = {'\0'};
         while (fgets(buffer, sizeof(buffer), file) != NULL){
             if (send(clientSocket, buffer, strlen(buffer), 0) < 0){
-                perror("Error sending file");
+                perror("[-] Error sending file");
                 fclose(file);
                 return;
             }

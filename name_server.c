@@ -1,7 +1,6 @@
 #include "header_files.h"
 #include "name_server.h"
 #include "params.h"
-#include "helper_functions.h"
 
 int clientSocket, storageServerSocket; // Sockets for handling storage server queries and client requests
 pthread_t* storageServerThreads;       //Thread for direct communication with a Storage server
@@ -70,11 +69,11 @@ void* handleStorageServerInitialization()
         socklen_t address_size = sizeof(struct sockaddr_in);
         int serverSocket = accept(storageServerSocket, (struct sockaddr*)&server_address, &address_size);
         if (serverSocket < 0) {
-            perror("Accept failed");
+            perror("[-] Accept failed");
             continue;
         }
 
-        printf("Storage Server Connection accepted from %s:%d\n", inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
+        printf("[+] Storage Server Connection accepted from %s:%d\n", inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
         
         // Create a new thread for each storage server
         args[ss_count].socket = serverSocket;
@@ -82,14 +81,14 @@ void* handleStorageServerInitialization()
 
         pthread_mutex_lock(&ss_count_lock);
         if (pthread_create(&storageServerThreads[ss_count], NULL, (void*)handleStorageServer, (void*)&args[ss_count]) < 0) {
-            perror("Thread creation failed");
+            perror("[-] Thread creation failed");
             pthread_mutex_unlock(&ss_count_lock);
             continue;
         }
 
         // Detach the thread - resources of the thread can be released when it finishes without waiting for it explicitly.
         if (pthread_detach(storageServerThreads[ss_count]) != 0) {
-            perror("Error detaching Storage server thread");
+            perror("[-] Error detaching Storage server thread");
             continue;
         }
 
@@ -115,7 +114,7 @@ void* handleStorageServer(void* argument)
     // Initialization process
     int bytesReceived = recv(connectedServerSocketID, buffer, BUFFER_LENGTH, 0);
     if (bytesReceived < 0){
-        perror("Error in Initializing the server");
+        perror("[-] Error in Initializing the server");
         return NULL;
     }
 
@@ -132,8 +131,8 @@ void* handleStorageServer(void* argument)
             char ss_id_str[5];
             snprintf(ss_id_str, sizeof(ss_id_str), "%d", serverID); // Using snprintf to convert the integer to a string
             
-            if (send(connectedServerSocketID, &ss_id_str, sizeof(int), 0) < 0){
-                perror("Error sending ss_id");
+            if (send(connectedServerSocketID, ss_id_str, strlen(ss_id_str), 0) < 0){
+                perror("[-] Error sending ss_id");
                 return NULL;
             }
             break;
@@ -169,10 +168,10 @@ void* handleStorageServer(void* argument)
     int serverSocket = initConnectionToStorageServer(server);
     if(serverSocket != -1){
         server->serverSocket = serverSocket;
-        printf("Storage server %d initialization done.\n", serverID);
+        printf("[+] Storage server %d initialization done.\n", serverID);
     }
     else{
-        printf("Error connecting to specificied PORT. This error needs to be handled.");
+        printf("[-] Error connecting to specificied PORT. This error needs to be handled.\n");
     }
     connectedServerSocketID = server->serverSocket;
 
@@ -182,7 +181,7 @@ void* handleStorageServer(void* argument)
     bzero(buffer, BUFFER_LENGTH);
     while(1){
         if((bytesReceived = recv(connectedServerSocketID, buffer, sizeof(buffer), 0)) < 0){
-            printf("Storage server %d is down", serverID);
+            printf("[-] Storage server %d is down\n", serverID);
             break;
         }
     }
@@ -195,7 +194,7 @@ int initConnectionToStorageServer(struct StorageServerInfo* server)
 {
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if(serverSocket == -1) {
-        perror("Error in opening a socket");
+        perror("[-] Error in opening a socket");
         return -1;
     }
 
@@ -204,13 +203,13 @@ int initConnectionToStorageServer(struct StorageServerInfo* server)
     storageServerAddr.sin_port = htons(server->naming_server_port);
     storageServerAddr.sin_addr.s_addr = INADDR_ANY;
     if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0){
-        perror("Invalid address/Address not supported");
+        perror("[-] Invalid address/Address not supported");
         close(serverSocket);
         return -1;
     }
 
     if (connect(serverSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0){
-        perror("Error in connecting to the storage server");
+        perror("[-] Error in connecting to the storage server");
         close(serverSocket);
         return -1;
     }
@@ -225,7 +224,7 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
     // Parsing format - "IP:PORT1:PORT2", PORT 1 is used for communication with the name server and PORT2 with client.
     if (sscanf(data, "%[^;];%d;%d", ip_address, ns_port, cs_port) != 3)
     {
-        fprintf(stderr, "Error parsing storage server info: %s\n", data);
+        printf("[-] Error parsing storage server info: %s\n", data);
     }
 }
 
@@ -297,20 +296,20 @@ void* handleClients()
     while(1){
         int newClientSocket = accept(clientSocket, NULL, NULL);
         if (newClientSocket < 0) {
-            perror("Error handleClients(): Client accept failed");
+            perror("[-] Error handleClients(): Client accept failed");
             continue;
         }      
 
         // Create a new thread for each new client
         pthread_t clientThread;
         if (pthread_create(&clientThread, NULL, (void*)handleClientRequests, (void*)&newClientSocket) < 0) {
-            perror("Thread creation failed");
+            perror("[-] Thread creation failed");
             continue;
         }
 
         // Detach the thread
         if (pthread_detach(clientThread) != 0) {
-            perror("Error detaching client thread");
+            perror("[-] Error detaching client thread");
             continue;
         }
     }
@@ -324,7 +323,7 @@ void* handleClientRequests(void* socket){
 
     int bytesReceived = recv(client_socket, &buffer, BUFFER_LENGTH, 0);
     if (bytesReceived < 0) {
-        perror("Error in receiving data");
+        perror("[-] Error in receiving data");
         return NULL;
     }
 
@@ -332,7 +331,7 @@ void* handleClientRequests(void* socket){
     struct StorageServerInfo* storageServer = searchStorageServer(buffer);
     
     if(storageServer == NULL){
-        strcpy(response, "2");
+        sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
     }
     else{
         // Need to check if the storage server is still up (TODO)
@@ -340,7 +339,7 @@ void* handleClientRequests(void* socket){
     }
 
     if(send(client_socket, response, strlen(response), 0) < 0){
-        perror("Error handleClientRequests(): Unable to send the response back");
+        perror("[-] Error handleClientRequests(): Unable to send the response back");
     }
     close(client_socket);
     return NULL;
@@ -352,13 +351,13 @@ int createFile(int serverSocket, char* path)
 {
     // Sending the operation number to the storage server
     if(send(serverSocket, "4", 1, 0) < 0){
-        perror("Error createFile(): Unable to send the create file command");
+        perror("[-] Error createFile(): Unable to send the create file command");
         return -1;
     }
 
     // Sending the file path to storage server
     if(send(serverSocket, path, strlen(path), 0) < 0){
-        perror("Error createFile(): Unable to send the file path");
+        perror("[-] Error createFile(): Unable to send the file path");
         return -1;
     }
 
@@ -367,7 +366,7 @@ int createFile(int serverSocket, char* path)
     return response;
     /*
     if(send(serverSocket, response, sizeof(response), 0) < 0){
-        perror("Error createFile(): Unable to send the response back to client");
+        perror("[-] Error createFile(): Unable to send the response back to client");
     }
     */
 }
@@ -602,7 +601,7 @@ int main(int argc, char* argv[])
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     storageServerSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0 || storageServerSocket < 0){
-        perror("Error in initializing socket");
+        perror("[-] Error in initializing socket");
         exit(EXIT_FAILURE);
     }
 
@@ -623,20 +622,20 @@ int main(int argc, char* argv[])
     if (bind(clientSocket, (struct sockaddr *)&clientServerAddr, sizeof(clientServerAddr)) < 0 ||
         bind(storageServerSocket, (struct sockaddr *)&storageServerAddr, sizeof(storageServerAddr)) < 0)
     {
-        perror("Error in binding sockets");
+        perror("[-] Error in binding sockets");
         closeConnections();
         exit(EXIT_FAILURE);
     }
 
     if (listen(clientSocket, NO_CLIENTS_TO_LISTEN_TO) < 0 || listen(storageServerSocket, NO_SERVER_TO_LISTEN_TO) < 0){
-        perror("Error in listening");
+        perror("[-] Error in listening");
         closeConnections();
         exit(EXIT_FAILURE);
     }
 
     else{
-        printf("Nameserver initialized.\n");
-        printf("Listening for storage server initialization and client requests on IP address 127.0.0.1 ...\n");
+        printf("[+] Nameserver initialized.\n");
+        printf("[+] Listening for storage server initialization and client requests on IP address 127.0.0.1 ...\n");
     }
 
     // Allocating threads for direct communication with Storage Server and client

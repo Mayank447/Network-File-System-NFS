@@ -20,7 +20,8 @@ void downloadFile(char* filename, int socket);
 void uploadFile(char* filename, int socket); 
 
 // print the error based on the valid bit to message string
-void handleErrorCodes(int valid, char* message);
+void handleErrorCodes(char* valid, char* message);
+void handleErrorCodes(char* valid, char* message);
 void* receiveConfirmation(int serverSocket, char* buffer);
 int createRecvThread(int serverSocket);
 

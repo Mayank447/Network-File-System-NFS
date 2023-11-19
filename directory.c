@@ -15,7 +15,7 @@ void copyDirectory(const char *sourceDir, const char *destinationDir) {
     // Open source directory
     DIR *dir = opendir(sourceDir);
     if (dir == NULL) {
-        perror("Unable to open source directory");
+        perror("[-] Unable to open source directory");
         return;
     }
     // Create destination directory
@@ -54,7 +54,7 @@ void deleteDirectory(const char *path, int clientSocketID)
         sprintf(Msg, "Is not directory: %s\n", path);
         if (send(clientSocketID, Msg, sizeof(Msg), 0) < 0)
         {
-            perror("Unable to send: Is not directory");
+            perror("[-] Unable to send: Is not directory");
         }
         return;
     }
@@ -66,7 +66,7 @@ void deleteDirectory(const char *path, int clientSocketID)
         sprintf(Msg, "Can`t open directory: %s\n", path);
         if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
         {
-            perror("Unable to send: Can`t open directory");
+            perror("[-] Unable to send: Can`t open directory");
         }
         return;
     }
@@ -97,7 +97,7 @@ void deleteDirectory(const char *path, int clientSocketID)
                 if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
                 {
                     printf("%s ", Msg);
-                    perror("Error sending message:");
+                    perror("[-] Error sending message:");
                 }
             }
         }
@@ -112,7 +112,7 @@ void deleteDirectory(const char *path, int clientSocketID)
         if (send(clientSocketID, Msg, strlen(Msg), 0) < 0)
         {
             printf("%s ", Msg);
-            perror("Error sending message:");
+            perror("[-] Error sending message:");
         }
     }
 }
