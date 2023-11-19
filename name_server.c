@@ -287,6 +287,32 @@ int deleteAccessiblePath(int ss_id, char* path)
 }
 
 
+// Function to retrieve the storage server with minimum no. of accessible paths
+struct StorageServerInfo* minAccessiblePathSS()
+{
+    pthread_mutex_lock(&storageServerHead_lock);
+    struct StorageServerInfo *ptr = storageServerList, *server = NULL;
+    pthread_mutex_unlock(&storageServerHead_lock);
+
+    if(ptr == NULL) 
+        return NULL;
+
+    // Traversing through all storage servers
+    int min_accessible_paths = MAX_NO_ACCESSIBLE_PATHS;
+
+    while(ptr != NULL){
+        pthread_mutex_lock(&ptr->count_accessible_path_lock);
+
+        if(ptr->count_accessible_paths < min_accessible_paths){
+            min_accessible_paths = ptr->count_accessible_paths;
+            server = ptr;
+        }
+        pthread_mutex_unlock(&ptr->count_accessible_path_lock);
+        ptr = ptr->next;
+    } 
+    return server;
+}
+
 
 /////////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES ///////////////////////////////////
 
@@ -303,13 +329,13 @@ void* handleClients()
         // Create a new thread for each new client
         pthread_t clientThread;
         if (pthread_create(&clientThread, NULL, (void*)handleClientRequests, (void*)&newClientSocket) < 0) {
-            perror("[-] Thread creation failed");
+            perror("[-] Error handleClients(): Thread creation failed");
             continue;
         }
 
         // Detach the thread
         if (pthread_detach(clientThread) != 0) {
-            perror("[-] Error detaching client thread");
+            perror("[-] Error handleClients(): Error in detaching client thread");
             continue;
         }
     }
@@ -317,15 +343,40 @@ void* handleClients()
 }
 
 // Function to handle a client request
-void* handleClientRequests(void* socket){
-    int client_socket = *(int*)socket;
-    char buffer[BUFFER_LENGTH], response[25];; // Stores the path received from the server
-
-    int bytesReceived = recv(client_socket, &buffer, BUFFER_LENGTH, 0);
-    if (bytesReceived < 0) {
-        perror("[-] Error in receiving data");
+void* handleClientRequests(void* socket)
+{
+    int clientSocket = *(int*)socket;
+    char buffer[BUFFER_LENGTH], response[25]; // Stores the path received from the server
+    
+    // Receiving the operation number
+    if(createRecvThread(clientSocket, buffer) == -1)
         return NULL;
+
+    // Checking the operation number
+    int op = checkOperationNumber(buffer);
+    if(op < 0) sprintf(response, "%d", ERROR_INVALID_REQUEST_NUMBER);
+    else strcpy(response, VALID_STRING);
+
+    // Sending confirmation for the op number received
+    if(sendReponse(clientSocket, response) != 0) return NULL;
+    if(op < 0) return NULL;
+
+
+    // Creating files
+    if(op == atoi(CREATE_FILE))
+    {
+        // Receiving the path
+        if(createRecvThread(clientSocket, buffer) != 0) return NULL;
+        printf("Path: %s\n", buffer);
+
+        // Sending confirmation the path
+        if(sendReponse(clientSocket, VALID_STRING) != 0) return NULL;
+        
+        // Finding the minimum access path's storage server 
+        createFile(buffer);
     }
+
+    /*
 
     // Searching for the storage server which stores that path and sending back storage server's IP and PORT
     struct StorageServerInfo* storageServer = searchStorageServer(buffer);
@@ -341,34 +392,41 @@ void* handleClientRequests(void* socket){
     if(send(client_socket, response, strlen(response), 0) < 0){
         perror("[-] Error handleClientRequests(): Unable to send the response back");
     }
-    close(client_socket);
+    */
+    close(clientSocket);
     return NULL;
 }
 
 
 // Function to create File inside a storage server
-int createFile(int serverSocket, char* path)
+int createFile(char* path)
 {
-    // Sending the operation number to the storage server
-    if(send(serverSocket, "4", 1, 0) < 0){
-        perror("[-] Error createFile(): Unable to send the create file command");
+    struct StorageServerInfo* server = minAccessiblePathSS();
+    if(server == NULL) return -1;
+    int serverSocket = server->serverSocket;
+    
+    // Sending the operation number and receiving the confirmation for it from the storage server
+    if(send(serverSocket, CREATE_FILE, strlen(CREATE_FILE), 0) < 0){
+        perror("[-] Error createFile(): Unable to send the create file command to the Storage Server");
         return -1;
     }
 
-    // Sending the file path to storage server
+    char buffer[BUFFER_LENGTH];
+    if(receiveConfirmation(serverSocket, buffer)) return -1;
+
+
+    // Sending the file path and receiving the confirmation for it from the storage server
     if(send(serverSocket, path, strlen(path), 0) < 0){
-        perror("[-] Error createFile(): Unable to send the file path");
+        perror("[-] Error createFile(): Unable to send the file path to the Storage Server");
         return -1;
     }
+    bzero(buffer, BUFFER_LENGTH);
+    if(receiveConfirmation(serverSocket, buffer)) return -1;
 
-    int response = (createRecvThread(serverSocket) < 0);
-    if(response < 0) response = 11;
-    return response;
-    /*
-    if(send(serverSocket, response, sizeof(response), 0) < 0){
-        perror("[-] Error createFile(): Unable to send the response back to client");
-    }
-    */
+    bzero(buffer, BUFFER_LENGTH);
+    if(createRecvThread(serverSocket, buffer)) return -1;
+
+   return 0;
 }
 
 

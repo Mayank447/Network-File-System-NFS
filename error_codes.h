@@ -2,6 +2,7 @@
 #define ERROR_CODES_H
 
 #define VALID 0
+#define VALID_STRING "0"
 
 // File errors
 #define ERROR_PATH_DOES_NOT_EXIST 2
@@ -23,6 +24,7 @@
 #define STORAGE_SERVER_ERROR 11
 #define STORAGE_SERVER_DOWN 3
 #define NAME_SERVER_ERROR 1
+#define RECEIVE_ERROR 16
 
 
 

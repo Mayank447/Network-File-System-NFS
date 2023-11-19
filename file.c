@@ -194,17 +194,20 @@ int fileExists(char *filename) {
 void createFile(char* path, int clientSocket)
 {
     char response[SEND_BUFFER_LENGTH];
-    if(checkFilePathExists(path))
-        strcpy(response, "7");
+    if(checkFilePathExists(path)){
+        sprintf(response, "%d", ERROR_FILE_ALREADY_EXISTS);
+    }
 
     else{
         FILE* file = fopen(path, "w");
         if(file == NULL){
-            strcpy(response, "12");
+            sprintf(response, "%d", ERROR_CREATING_FILE); 
         }
-        fclose(file);
-        addFile(path, 0);
-        strcpy(response, "0");
+        else{
+            fclose(file);
+            addFile(path, 0);
+            strcpy(response, "0");
+        }
     }
 
     if(send(clientSocket, response, strlen(response), 0) < 0){
@@ -228,19 +231,19 @@ void getFileMetaData(char* filepath, int clientSocketID)
                         ctime(&fileStat.st_atime), ctime(&fileStat.st_mtime), ctime(&fileStat.st_ctime));
         
         if (n < 0) {
-            perror("[-] [-] Error formatting file metadata");
+            perror("[-] Error formatting file metadata");
             sprintf(buffer, "%d", STORAGE_SERVER_ERROR);
         }
     }
 
     else {
-        perror("[-] stat");
+        perror("[-] Stat: Unable to get file stat");
         sprintf(buffer, "%d", ERROR_GETTING_FILE_PERMISSIONS);
     }
 
     // Send the formatted metadata or error buffer
     if (send(clientSocketID, buffer, strlen(buffer), 0) < 0) {
-        perror("[-] [-] Error sending file metadata");
+        perror("[-] Error sending file metadata");
     }
 }
 

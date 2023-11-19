@@ -2,6 +2,18 @@
 #define PARAMS_H
 
 
+// Operations
+#define CREATE_FILE "1"
+#define CREATE_DIRECTORY "2"
+#define READ_FILE "3"
+#define WRITE_FILE "4"
+#define GET_FILE_PERMISSIONS "5"
+#define DELETE_FILE "6"
+#define DELETE_DIRECTORY "7"
+#define COPY_FILES "8"
+#define COPY_DIRECTORY "9"
+
+
 #define CLIENT_PORT 8080 // Port no. for communication with the client
 #define STORAGE_SERVER_PORT 9090 // Port no. for communication with the storage server
 

@@ -1,9 +1,13 @@
 #ifndef HELPER_FUNCTIONS
 #define HELPER_FUNCTIONS
 
+#define THREAD_RUNNING  0
+#define THREAD_FINISHED 1
 struct ReceiveThreadArgs{
     int serverSocket;
     char* buffer;
+    int threadStatus;
+    int threadResult;
 };
 
 
@@ -22,7 +26,10 @@ void uploadFile(char* filename, int socket);
 // print the error based on the valid bit to message string
 void handleErrorCodes(char* valid, char* message);
 void handleErrorCodes(char* valid, char* message);
-void* receiveConfirmation(int serverSocket, char* buffer);
-int createRecvThread(int serverSocket);
+int createRecvThread(int serverSocket, char* buffer);
+int checkOperationNumber(char* buffer);
+int sendReponse(int socket, char* response);
+int sendConfirmation(int socket);
+int receiveConfirmation(int serverSocket, char* buffer);
 
 #endif

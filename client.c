@@ -2,7 +2,6 @@
 #include "client.h"
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
-#define BUFFER_SIZE 1024
 
 char error_message[ERROR_BUFFER_LENGTH];
 
@@ -10,7 +9,7 @@ char error_message[ERROR_BUFFER_LENGTH];
 
 /* Function to print all the possible operations performable*/
 void printOperations(){
-    printf("1. Create a File\n");
+    printf("\n1. Create a File\n");
     printf("2. Create Folder\n");
     printf("3. Read File\n");
     printf("4. Write to a File\n");
@@ -20,7 +19,6 @@ void printOperations(){
     printf("8. Copy File\n"); // Specify the two directory paths
     printf("9. Copy Folder\n"); // Specify the two paths
     printf("Choose an operation: ");
-    printf("\n");
     fflush(stdin);
 }
 
@@ -38,11 +36,58 @@ void getFirectoryPath(char* path){
 
 
 ///////////////////////// FETCHING AND CONNECTING TO STORAGE SERVER //////////////////
+int sendCommandToNameServer(char* operation_num, char* path)
+{
+    int nsSocket; // Socket from client side to name-server
+    struct sockaddr_in name_server_address;
+    char buffer[BUFFER_LENGTH];
+
+    // Opening a socket for connection with the nameserver
+    if ((nsSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("[-] Error sendCommandToNameServer(): Socket creation failed");
+        return -1;
+    }
+    
+    name_server_address.sin_family = AF_INET;
+    name_server_address.sin_port = htons(NAMESERVER_PORT);
+    name_server_address.sin_addr.s_addr = INADDR_ANY;
+    
+    if (inet_pton(AF_INET, "127.0.0.1", &name_server_address.sin_addr) < 0){
+        perror("[-] Error sendCommandToNameServer(): Invalid address/Address not supported");
+        close(nsSocket);
+        return -1;
+    }
+
+    // Connecting to the nameserver
+    if (connect(nsSocket, (struct sockaddr *)&name_server_address, sizeof(name_server_address)) < 0){
+        perror("[-] Error sendCommandToNameServer(): Connection to nameserver failed");
+        close(nsSocket);
+        return -1;
+    }
+    printf("[+] Connected to Nameserver..\n");
+
+    // Sending the Operation number to the Name server
+    if(send(nsSocket, operation_num, strlen(operation_num), 0) < 0){
+        perror("[-] Error sendCommandToNameServer(): Unable to send operation number to name_server");
+        close(nsSocket);
+        return -1;
+    }
+
+    // Receiving the Operation Number Confirmation from the Nameserver and Checking if the operation is valid
+    if(receiveConfirmation(nsSocket, buffer)){
+        close(nsSocket);
+        return -1;
+    } 
+    
+    return nsSocket;
+}
+
+
 int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
 {   
     int nsSocket; // Socket from client side to name-server
     struct sockaddr_in name_server_address;
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_LENGTH];
 
     // Opening a socket for connection with the nameserver
     if ((nsSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -73,7 +118,7 @@ int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
         return -1;
     }
 
-    if(recv(nsSocket, buffer, BUFFER_SIZE, 0) < 0){
+    if(recv(nsSocket, buffer, BUFFER_LENGTH, 0) < 0){
         perror("[-] Error fetchStorageServerIP_Port(): Unable to receive the requested Storage server IP and PORT.");
         close(nsSocket);
         return -1;
@@ -122,7 +167,7 @@ int connectToStorageServer(const char* IP_address, const int PORT)
 
 int checkResponse(char* response){
     // Print error based on ERROR-CODE (if response!=0)
-    if(strcmp(response, "0")==0){
+    if(strcmp(response, VALID_STRING)==0){
         bzero(error_message, ERROR_BUFFER_LENGTH);
         handleErrorCodes(response, error_message);
         printf("[-] %s\n", error_message);
@@ -146,17 +191,18 @@ int receiveAndCheckResponse(int serverSocket, char* error){
 }
 
 
-int sendOpNumber_Path(int serverSocket, char* operation_no_path)
+// Function to Sending the Path to the connected Nameserver/Storage Server
+int sendPath(int serverSocket, char* path)
 {
-    /* Function to Sending the operation_number/Path to the connected Storage Server */
-    if(send(serverSocket, operation_no_path, strlen(operation_no_path), 0) < 0){
-        perror("[-] Error sendOpNumber_Path(): Unable to send the OPERATION NUMBER to the server");
+    if(send(serverSocket, path, strlen(path), 0) < 0){
+        perror("[-] Error sendPath(): Unable to send the path to the server");
         close(serverSocket);
         return -1;
     }
 
-    // Checking if the operation number is valid
-    return receiveAndCheckResponse(serverSocket, "Unable to receive the RESPONSE FROM THE SERVER");
+    // Receiving the confirmation
+    char buffer[BUFFER_LENGTH];
+    return receiveConfirmation(serverSocket, buffer);
 }
 
 
@@ -171,16 +217,23 @@ int connectAndCheckForFileExistence(char* path, char* operation_num)
     int serverSocket = connectToStorageServer(IP_address, PORT);
     if(serverSocket < 0) return serverSocket;
 
-    if(sendOpNumber_Path(serverSocket, operation_num) == -1) return -1;
-    if(sendOpNumber_Path(serverSocket, path) == -1) return -1;
+    if(sendPath(serverSocket, operation_num) == -1) return -1;
+    if(sendPath(serverSocket, path) == -1) return -1;
     return serverSocket;
 }
 
 
 
 ////////////////////////////// FILE OPERATION /////////////////////////////
-void createFile(char* path){
-    
+void createFile(char* path)
+{
+    int nsSocket;
+    if((nsSocket = sendCommandToNameServer(CREATE_FILE, path)) < 0) 
+        return;
+
+    // Sending the file path to the nameserver
+    if(sendPath(nsSocket, path) < 0) return;
+    close(nsSocket);
 }
 
 
@@ -229,7 +282,7 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
     // Break data into buffer chunks and send
     size_t data_length = strlen(data);
     size_t sent_bytes = 0;
-    size_t chunk_size = BUFFER_SIZE;
+    size_t chunk_size = BUFFER_LENGTH;
 
     while (sent_bytes < data_length)
     {
@@ -296,6 +349,13 @@ void parseMetadata(char *data)
 
 
 ////////////////////////////// DIRECTORY OPERATION ////////////////////////
+void createDirectory(char* path){
+
+}
+
+void deletDirectory(char* path){
+
+}
 
 
 
@@ -321,6 +381,7 @@ int main()
         // Create a folder
         else if(op == 2){
             getFirectoryPath(path1);
+            createDirectory(path1);
         }
 
         // Reading file from a specified file path
@@ -354,12 +415,13 @@ int main()
         // Delete Directory
         else if(op == 7){
             getFirectoryPath(path1);
+            deletDirectory(path1);
         }
 
         // Copy File
         else if(op == 8){
             getFilePath(path1);
-            // deleteFile(path1);  
+            // copyFile(path1);  
         }
 
         // Copy Directory

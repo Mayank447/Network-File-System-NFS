@@ -77,39 +77,93 @@ void extractFileName(char *path, char *filename) {
 }
 
 
-int createRecvThread(int serverSocket)
+// Thread Function to receive data from the socket
+void* receiveInfo(void* thread_args)
 {
-    char buffer[BUFFER_LENGTH];
+    struct ReceiveThreadArgs* args = (struct ReceiveThreadArgs*)thread_args;
+    
+    // Receiving the confirmation for storage server's side
+    if(recv(args->serverSocket, args->buffer, sizeof(args->buffer), 0) < 0){
+        pthread_testcancel();
+        perror("[-] Error createFile(): Unable to receive info");
+        args->threadResult = -1;
+        args->threadStatus = THREAD_FINISHED;
+        return NULL;
+    }
+    pthread_testcancel();
+    args->threadResult = 0;
+    args->threadStatus = THREAD_FINISHED;
+    return NULL;
+}
+
+
+// Thread creating function for receiveInfo()
+int createRecvThread(int serverSocket, char* buffer)
+{
     struct ReceiveThreadArgs args;
     args.buffer = buffer;
     args.serverSocket = serverSocket;
+    args.threadStatus = THREAD_RUNNING;
+    args.threadResult = -1;
 
     pthread_t receiveThread;
-    pthread_create(&receiveThread, NULL, (void*)receiveConfirmation, (void*)&args);
+    bzero(buffer, BUFFER_LENGTH);
+    pthread_create(&receiveThread, NULL, (void*)receiveInfo, (void*)&args);
+    
+    // Waiting for a specified time, if the thread does not finish exit
     clock_t start_time = clock();
-    while(((double)(clock() - start_time))/ CLOCKS_PER_SEC  <  RECEIVE_THREAD_RUNNING_TIME);
+    while((args.threadStatus != THREAD_FINISHED) && ((double)(clock() - start_time))/ CLOCKS_PER_SEC  <  RECEIVE_THREAD_RUNNING_TIME);
     
-    if(pthread_join(receiveThread, NULL) == 0){
-        char message[BUFFER_LENGTH];
-        handleErrorCodes(buffer, message);
-        return atoi(buffer);
-    } 
-    else
-        printf("Failed to receive confirmation from the thread\n");
+    if(args.threadStatus == THREAD_FINISHED) {
+        pthread_join(receiveThread, NULL);
+        return args.threadResult;
+    }
     
+    pthread_cancel(receiveThread);
+    printf("[-] Failed to receive sent info\n");
     return -1;
 }
 
 
-void* receiveConfirmation(int serverSocket, char* buffer)
-{
-    // Receiving the confirmation for storage server's side
-    if(recv(serverSocket, buffer, sizeof(buffer), 0) < 0){
-        perror("[-] Error createFile(): Unable to receive the confirmation from server's side");
+// Thread to send response
+int sendReponse(int socket, char* response){
+    if(send(socket, response, strlen(response), 0) < 0){
+        perror("[-] sendConfirmation(): Error sending confirmation");
+        return -1;
     }
-    return NULL;
+    return 0;
 }
 
+// Thread to send confirmation of valid
+int sendConfirmation(int socket){
+    if(send(socket, VALID_STRING, strlen(VALID_STRING), 0) < 0){
+        perror("[-] sendConfirmation(): Error sending confirmation");
+        return -1;
+    }
+    return 0;
+}
+
+// Wrapper around CreateRecvThread to check for confirmation
+int receiveConfirmation(int serverSocket, char* buffer)
+{
+    if(createRecvThread(serverSocket, buffer)) 
+        return -1;
+    
+    if(strcmp(buffer, VALID_STRING) != 0) {
+        printf("[-] %s\n", buffer);
+        return -1;
+    }
+    return 0;
+}
+
+// Checking the operation number
+int checkOperationNumber(char* buffer)
+{
+    int num = atoi(buffer);
+    bzero(buffer, BUFFER_LENGTH);
+    if(atoi(buffer) < 0 || atoi(buffer) > 9) return -1;
+    return num;
+}
 
 // Download a File - Receive data from a Socket and write to a File
 void downloadFile(char* filename, int socket)
