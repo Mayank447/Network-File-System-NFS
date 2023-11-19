@@ -1,7 +1,7 @@
+#include "header_files.h"
+
 #ifndef SERVER_H
 #define SERVER_H
-
-#include "params.h"
 
 typedef struct file_struct{
     char filepath[MAX_PATH_LENGTH];   // filepath (wrt root directroy

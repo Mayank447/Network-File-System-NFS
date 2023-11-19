@@ -1,6 +1,5 @@
 #include "header_files.h"
 #include "helper_functions.h"
-#include "params.h"
 
 char error_message[1024];
 

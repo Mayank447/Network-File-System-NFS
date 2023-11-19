@@ -22,5 +22,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include "params.h"
 
 #endif

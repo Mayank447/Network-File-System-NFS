@@ -1,7 +1,6 @@
 #include "header_files.h"
-#include "params.h"
-#include "client.h"
 #include "helper_functions.h"
+#include "client.h"
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
 #define BUFFER_SIZE 1024
