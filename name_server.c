@@ -348,9 +348,31 @@ void* handleClientRequests(void* socket){
 }
 
 
-// void createFile(){
+// Function to create File inside a storage server
+int createFile(int serverSocket, char* path)
+{
+    // Sending the operation number to the storage server
+    if(send(serverSocket, "4", 1, 0) < 0){
+        perror("Error createFile(): Unable to send the create file command");
+        return -1;
+    }
 
-// }
+    // Sending the file path to storage server
+    if(send(serverSocket, path, strlen(path), 0) < 0){
+        perror("Error createFile(): Unable to send the file path");
+        return -1;
+    }
+
+    int response = (createRecvThread(serverSocket) < 0);
+    if(response < 0) response = 11;
+    return response;
+    /*
+    if(send(serverSocket, response, sizeof(response), 0) < 0){
+        perror("Error createFile(): Unable to send the response back to client");
+    }
+    */
+}
+
 
 /////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////
 

@@ -1,4 +1,5 @@
 #include "header_files.h"
+#include "helper_functions.h"
 #include "params.h"
 
 char error_message[1024];
@@ -53,6 +54,42 @@ void handleErrorCodes(int valid, char* message){
         strcpy(message, "SERVER ERROR: OPENING FILE");
     else if(valid == 14)
         strcpy(message, "SERVER ERROR: UNABLE TO DELETE FILE");
+    else if(valid == 15)
+        strcpy(message, "SERVER ERROR: ERROR GETTING FILE PERMISSIONS");
+}
+
+
+int createRecvThread(int serverSocket)
+{
+    char buffer[BUFFER_LENGTH];
+    struct ReceiveThreadArgs args;
+    args.buffer = &buffer;
+    args.serverSocket = serverSocket;
+
+    pthread_t receiveThread;
+    pthread_create(&receiveThread, NULL, receiveConfirmation, (void*)&args);
+    clock_t start_time = clock();
+    while(((double)(clock() - start_time))/ CLOCKS_PER_SEC  <  RECEIVE_THREAD_RUNNING_TIME);
+    
+    if(pthread_join(receiveThread, NULL) == 0){
+        char message[BUFFER_LENGTH];
+        handleErrorCodes(atoi(buffer), message);
+        return atoi(buffer);
+    } 
+    else
+        printf("Failed to receive confirmation from the thread\n");
+    
+    return -1;
+}
+
+
+void* receiveConfirmation(int serverSocket, char* buffer)
+{
+    // Receiving the confirmation for storage server's side
+    if(recv(serverSocket, buffer, sizeof(buffer), 0) < 0){
+        perror("Error createFile(): Unable to receive the confirmation from server's side");
+    }
+    return NULL;
 }
 
 

@@ -25,5 +25,6 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 void* handleStorageServer(void* argument);
 void* handleClientRequests(void*);
 struct StorageServerInfo* searchStorageServer(char* file_path);
+void* receiveConfirmation(int serverSocket, char* buffer);
 
 #endif

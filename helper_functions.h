@@ -1,6 +1,12 @@
 #ifndef HELPER_FUNCTIONS
 #define HELPER_FUNCTIONS
 
+struct ReceiveThreadArgs{
+    int serverSocket;
+    char* buffer;
+};
+
+
 // Remove leading whitespaces form a string
 void trim(char *str); 
 
@@ -15,5 +21,7 @@ void uploadFile(char* filename, int socket);
 
 // print the error based on the valid bit to message string
 void handleErrorCodes(int valid, char* message);
+void* receiveConfirmation(int serverSocket, char* buffer);
+int createRecvThread(int serverSocket);
 
 #endif
