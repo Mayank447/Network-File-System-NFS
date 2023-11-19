@@ -111,7 +111,6 @@ void* handleStorageServer(void* argument)
     int naming_server_port, client_server_port;
     char ip_address[256], buffer[BUFFER_LENGTH];
     int receivingInfo = 0; // State variable
-    int pathIndex = -2;
     
     // Initialization process
     int bytesReceived = recv(connectedServerSocketID, buffer, BUFFER_LENGTH, 0);

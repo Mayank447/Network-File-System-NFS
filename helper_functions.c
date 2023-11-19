@@ -63,11 +63,11 @@ int createRecvThread(int serverSocket)
 {
     char buffer[BUFFER_LENGTH];
     struct ReceiveThreadArgs args;
-    args.buffer = &buffer;
+    args.buffer = buffer;
     args.serverSocket = serverSocket;
 
     pthread_t receiveThread;
-    pthread_create(&receiveThread, NULL, receiveConfirmation, (void*)&args);
+    pthread_create(&receiveThread, NULL, (void*)receiveConfirmation, (void*)&args);
     clock_t start_time = clock();
     while(((double)(clock() - start_time))/ CLOCKS_PER_SEC  <  RECEIVE_THREAD_RUNNING_TIME);
     

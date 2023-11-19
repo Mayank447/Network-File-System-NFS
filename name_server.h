@@ -1,8 +1,8 @@
 #ifndef NAME_SERVER_H
 #define NAME_SERVER_H
 
-#define MAX_NO_ACCESSIBLE_PATHS 300
-#define MAX_LENGTH_OF_ACCESSIBLE_PATH 300
+#include "params.h"
+
 struct StorageServerInfo{
     int ss_id;
     int serverSocket;

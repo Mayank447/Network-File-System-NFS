@@ -2,7 +2,6 @@
 #define PARAMS_H
 
 
-// name_server.h
 #define CLIENT_PORT 8080 // Port no. for communication with the client
 #define STORAGE_SERVER_PORT 9090 // Port no. for communication with the storage server
 
@@ -16,6 +15,16 @@
 #define ERROR_BUFFER_LENGTH 1024
 #define MAX_PATH_LENGTH 1000
 #define MAX_FILE_NAME_LENGTH 256
+#define MAX_NO_ACCESSIBLE_PATHS 300
+#define MAX_LENGTH_OF_ACCESSIBLE_PATH 300
+
+#define MAX_CLIENT_CONNECTIONS 5
+#define RECEIVE_BUFFER_LENGTH 1024
+#define SEND_BUFFER_LENGTH 1024
+#define ERROR_BUFFER_LENGTH 1024
+#define MAX_PATH_LENGTH 1000
 
 #define RECEIVE_THREAD_RUNNING_TIME 5
+
+
 #endif
