@@ -31,6 +31,7 @@ void getFilePath(char* path1){
 }
 
 
+
 ///////////////////////// FETCHING AND CONNECTING TO STORAGE SERVER //////////////////
 int fetchStorageServerIP_Port(const char* path, char* IP_address, int* PORT)
 {   
@@ -363,20 +364,5 @@ int main()
 
         else printf("Invalid operation\n");
     }
-
-    /*
-        printf("%s\n", buffer);
-        parseMetadata(buffer, file_name, &file_size, &file_permissions);
-        printf("file name:%s\n",file_name);
-        printf("file size:%d\n",file_size);
-        printf("file permission:%d\n",file_permissions);
-        printf("ABOVE INFORMATION IS META DATA OF THE FILE\n");
-        // Receive the content from the socket and print it on the terminal
-        close(new_client_socket);
-        
-    } else {
-        printf("Invalid operation choice.\n");
-    }
-    */
     return 0;
 }
