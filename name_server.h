@@ -29,7 +29,7 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 void* handleStorageServer(void* argument);
 
 void* handleClientRequests(void*);
-void functionHandler(char* path, char* response, char* type);
+void createDeletionHandler(char* path, char* response, char* type);
 void copyHandler(char* path1, char* path2, char* response, char* op);
 
 #endif
