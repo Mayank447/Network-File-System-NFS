@@ -411,11 +411,36 @@ void* handleClientRequests(void* socket)
     }
 
     // Creating files
-    if(op == atoi(CREATE_DIRECTORY))
+    else if(op == atoi(CREATE_DIRECTORY))
     {        
         // Finding the minimum access path's storage server 
         char response[BUFFER_LENGTH];
         functionHandler(path, response, CREATE_DIRECTORY);
+
+        // Sending the response to client
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the createFile response back to client.\n");
+        }
+    }
+
+    // Deleting files
+    else if(op == atoi(DELETE_FILE))
+    {        
+        char response[BUFFER_LENGTH];
+        functionHandler(path, response, DELETE_FILE);
+        printf("Response: %s\n", response);
+
+        // Sending the response to client
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the createFile response back to client.\n");
+        }
+    }
+
+    // Delete Folder
+    else if(op == atoi(DELETE_DIRECTORY))
+    {        
+        char response[BUFFER_LENGTH];
+        functionHandler(path, response, DELETE_DIRECTORY);
         printf("Response: %s\n", response);
 
         // Sending the response to client
@@ -432,13 +457,22 @@ void* handleClientRequests(void* socket)
 // Function to create File inside a storage server
 void functionHandler(char* path, char* response, char* type)
 {
-    struct StorageServerInfo* server = minAccessiblePathSS();
+    struct StorageServerInfo* server;
+    if(strcmp(type, CREATE_FILE)==0 || strcmp(type, CREATE_DIRECTORY)==0)
+        server = minAccessiblePathSS();
+
+    // If the command is delete directory
+    if(strcmp(type, DELETE_FILE)==0 || strcmp(type, DELETE_DIRECTORY)==0)
+        server = searchStorageServer(path);
+    
     if(server == NULL) {
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
         return;
     }
+
     // Need to handle redundancy here
 
+    // Connecting to the server
     int serverSocket = connectToServer(server->ip_address, server->naming_server_port);
     if(serverSocket == -1){
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);

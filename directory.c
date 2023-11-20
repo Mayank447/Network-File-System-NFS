@@ -70,6 +70,11 @@ void createDirectory(char* path, char* response)
     }
 }
 
+
+void deleteDirectory(char* path, char* response){
+    
+}
+
 /*
 // Function to copy directories between two storage servers
 void copyDirectory(const char *sourceDir, const char *destinationDir) {

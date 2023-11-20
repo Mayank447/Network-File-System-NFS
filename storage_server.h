@@ -16,17 +16,12 @@ char ErrorMsg[1024];
 
 
 // Functions for files
-void deleteFile(char* filename, int clientSocketID);
 void getFileMetaData(char* filename, int clientSocketID);
-void write_releaseLock(File *file, int clientID);
-void read_releaseLock(File *file);
 
 
 // Functions for directory
 void uploadDir_client_to_server(char* directoryname, int clientSocketID);
 void sendDir_server_to_client(char* directoryname, int clientSocketID);
-void deleteDirectory(const char* path, int clientSocketID);
-void getDir(char* directoryname, int clientSocketID);
 
 
 // Functions for initialization

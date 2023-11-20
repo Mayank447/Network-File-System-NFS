@@ -14,6 +14,6 @@ void cleanUpFileStruct();
 int checkFileType(char* path);
 int fileExists(char *filename);
 void createFile(char* path, char* response);
-void deleteFile(char *filename, int clientSocketID);
+void deleteFile(char *filename, char* response);
 
 #endif

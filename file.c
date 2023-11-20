@@ -244,37 +244,22 @@ void getFileMetaData(char* filepath, int clientSocketID)
 
 
 // Function to delete a File
-void deleteFile(char *filename, int clientSocketID)
+void deleteFile(char *filename, char* response)
 {
-    bzero(Msg, ERROR_BUFFER_LENGTH);
-
     // File does not exist
     if (access(filename, F_OK) != 0) { 
-        sprintf(Msg, "%d", ERROR_FILE_DOES_NOT_EXIST);
-    }
-    else {
-        sprintf(Msg, "%d", VALID);
-    }
-    
-    // Sending the confirmation message to client
-    if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
-        perror("[-] Error deleteFile(): Unable to file exists message");
+        sprintf(response, "%d", ERROR_FILE_DOES_NOT_EXIST);
         return;
     }
-    if(strcmp(Msg,"0")==0) return;
+    else strcpy(response, VALID_STRING);
 
     // Check for permission [TODO]
-    bzero(Msg, ERROR_BUFFER_LENGTH);
-    if (remove(filename) == 0) {
-        sprintf(Msg, "%d", VALID);
+    if(remove(filename) == 0) {
+        strcpy(response, VALID_STRING);
         removeFile(filename);
     }
-
-    else sprintf(Msg, "%d", ERROR_UNABLE_TO_DELETE_FILE);
-
-    if (send(clientSocketID, Msg, strlen(Msg), 0) < 0){
-        perror("[-] Unable to send message: File deleted successfully");
-    }
+    else 
+        sprintf(response, "%d", ERROR_UNABLE_TO_DELETE_FILE);
 }
 
 

@@ -29,7 +29,7 @@ void getFilePath(char* path){
 }
 
 // Function to get the directory path from the user
-void getFirectoryPath(char* path){
+void getDirectoryPath(char* path){
     printf("Enter the directory path: ");
     scanf("%s", path);
 }
@@ -331,17 +331,6 @@ void parseMetadata(char *data)
 
 
 
-////////////////////////////// DIRECTORY OPERATION ////////////////////////
-void createDirectory(char* path){
-
-}
-
-void deletDirectory(char* path){
-
-}
-
-
-
 ////////////////////////////// MAIN FUNCTION /////////////////////////////////
 int main()
 {
@@ -365,7 +354,7 @@ int main()
 
         // Create a folder
         else if(op == 2){
-            getFirectoryPath(path1);
+            getDirectoryPath(path1);
             if(sendOperation_Path(CREATE_DIRECTORY, path1) != -1){
                 printf("[+] Directory created successfully\n");
             }
@@ -396,13 +385,15 @@ int main()
         // Delete File
         else if(op == 6){
             getFilePath(path1);
-            deleteFile(path1);  
+            if(sendOperation_Path(DELETE_FILE, path1) != -1){
+                printf("[+] File deleted successfully\n");
+            }  
         }
 
         // Delete Directory
         else if(op == 7){
-            getFirectoryPath(path1);
-            deletDirectory(path1);
+            getDirectoryPath(path1);
+            // deleteDirectory(path1);
         }
 
         // Copy File
@@ -413,7 +404,7 @@ int main()
 
         // Copy Directory
         else if(op == 9){
-            getFirectoryPath(path1);
+            getDirectoryPath(path1);
         }
 
         else printf("[-] Invalid operation\n");

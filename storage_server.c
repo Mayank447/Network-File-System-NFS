@@ -261,16 +261,17 @@ void* handleNameServerThread(void* args)
     if(op == -1) {
         close(nsSocket);
         return NULL;
+    }  
+
+    // Receiving the first path
+    char path[BUFFER_LENGTH], response[100];
+    if(receivePath(nsSocket, path)){
+        close(nsSocket);
+        return NULL;
     }
 
     // Create File
     if(op == atoi(CREATE_FILE)){
-        char path[BUFFER_LENGTH], response[100];
-        if(receivePath(nsSocket, path)){
-            close(nsSocket);
-            return NULL;
-        }
-
         createFile(path, response);
         if(sendData(nsSocket, response)){
             printf("[-] Error sending createFile() response to Name server\n");
@@ -279,32 +280,20 @@ void* handleNameServerThread(void* args)
 
     // Create Folder
     else if(op == atoi(CREATE_DIRECTORY)){
-        char path[BUFFER_LENGTH], response[100];
-        if(receivePath(nsSocket, path)){
-            close(nsSocket);
-            return NULL;
-        }
-
         createDirectory(path, response);
         if(sendData(nsSocket, response)){
             printf("[-] Error sending createDirectory() response to Name server\n");
         }
     }
 
-    // Create Folder
+    // Delete File
     else if(op == atoi(DELETE_FILE)){
-        char path[BUFFER_LENGTH], response[100];
-        if(receivePath(nsSocket, path)){
-            close(nsSocket);
-            return NULL;
-        }
-        printf("Path: %s\n", path);
-
-        createDirectory(path, response);
+        deleteFile(path, response);
         if(sendData(nsSocket, response)){
             printf("[-] Error sending createDirectory() response to Name server\n");
         }
     }
+    
 
     close(nsSocket);
     return NULL;
@@ -428,26 +417,6 @@ void* handleClientRequest(void* argument)
     // GET PERMISSIONS
     else if(request_no == 5 && receiveAndValidateFilePath(clientSocket, filepath, 5, NULL, 1) == 0){
         getFileMetaData(filepath, clientSocket);
-    }
-
-    // DELETE FILE
-    else if(request_no == 6 && receiveAndValidateFilePath(clientSocket, filepath, 6, NULL, 1) == 0){
-        deleteFile(filepath, clientSocket);
-    }
-
-    // DELETE DIRECTORY
-    else if(request_no == 7){
-
-    }
-
-    // COPY FOLDER
-    else if(request_no == 8){
-
-    }
-
-    // COPY DIRECTORY
-    else if(request_no == 9){
-
     }
 
     close(clientSocket);
