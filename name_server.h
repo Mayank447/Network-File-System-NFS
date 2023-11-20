@@ -27,7 +27,9 @@ void cleanStorageServerInfoLinkedList();
 int initConnectionToStorageServer(struct StorageServerInfo* server);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);
+
 void* handleClientRequests(void*);
 void functionHandler(char* path, char* response, char* type);
+void copyHandler(char* path1, char* path2, char* response, char* op);
 
 #endif

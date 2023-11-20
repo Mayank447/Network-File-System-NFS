@@ -381,6 +381,7 @@ void* handleClientRequests(void* socket)
 {
     int clientSocket = *(int*)socket;
     char path[BUFFER_LENGTH];
+    char response[BUFFER_LENGTH];
     
     // Receiving the operation number
     int op = receiveOperationNumber(clientSocket);
@@ -390,33 +391,27 @@ void* handleClientRequests(void* socket)
     }
 
     // Receiving the path
-    char response[BUFFER_LENGTH];
     if(createRecvThread(clientSocket, path)){
         close(clientSocket);
         return NULL;
     }
-    printf("Path: %s\n", path);
 
 
     // Creating files
     if(op == atoi(CREATE_FILE))
     {        
         functionHandler(path, response, CREATE_FILE);
-
-        // Sending the response to client
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the createFile response back to client.\n");
         }
     }
 
-    // Creating files
+    // Creating directory
     else if(op == atoi(CREATE_DIRECTORY))
     {        
         functionHandler(path, response, CREATE_DIRECTORY);
-
-        // Sending the response to client
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createFile response back to client.\n");
+            printf("[-] Unable to send the createDirectory response back to client.\n");
         }
     }
 
@@ -424,10 +419,8 @@ void* handleClientRequests(void* socket)
     else if(op == atoi(DELETE_FILE))
     {        
         functionHandler(path, response, DELETE_FILE);
-
-        // Sending the response to client
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createFile response back to client.\n");
+            printf("[-] Unable to send the deleteFile response back to client.\n");
         }
     }
 
@@ -435,8 +428,34 @@ void* handleClientRequests(void* socket)
     else if(op == atoi(DELETE_DIRECTORY))
     {        
         functionHandler(path, response, DELETE_DIRECTORY);
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the deleteDirectory response back to client.\n");
+        }
+    }
 
-        // Sending the response to client
+    // Copy files
+    else if(op == atoi(COPY_FILES)){ 
+        char path2[BUFFER_LENGTH];
+        if(createRecvThread(clientSocket, path2)){
+            close(clientSocket);
+            return NULL;
+        }
+
+        copyHandler(path, path2, response, COPY_FILES);
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the createFile response back to client.\n");
+        }
+    }
+
+    // Copy Folders
+    else if(op == atoi(COPY_DIRECTORY)){ 
+        char path2[BUFFER_LENGTH];
+        if(createRecvThread(clientSocket, path2)){
+            close(clientSocket);
+            return NULL;
+        }
+
+        copyHandler(path, path2, response, COPY_DIRECTORY);
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the createFile response back to client.\n");
         }
@@ -447,14 +466,16 @@ void* handleClientRequests(void* socket)
 }
 
 
-// Function to create File inside a storage server
+// Function to create/delete File or Folder inside a storage server
 void functionHandler(char* path, char* response, char* type)
 {
     struct StorageServerInfo* server;
+
+    // If the command is Create File/Directory
     if(strcmp(type, CREATE_FILE)==0 || strcmp(type, CREATE_DIRECTORY)==0)
         server = minAccessiblePathSS();
 
-    // If the command is delete directory
+    // If the command is Delete File/Directory
     if(strcmp(type, DELETE_FILE)==0 || strcmp(type, DELETE_DIRECTORY)==0)
         server = searchStorageServer(path);
     
@@ -495,17 +516,33 @@ void functionHandler(char* path, char* response, char* type)
 
     // Adding this path to the array of accessible paths
     if(strcmp(response, VALID_STRING)==0 && 
-        (strcmp(type, CREATE_FILE)==0 || (strcmp(type, CREATE_DIRECTORY)==0))){
+        (strcmp(type, CREATE_FILE)==0 || (strcmp(type, CREATE_DIRECTORY)==0)))
+    {
         addAccessiblePath(server->ss_id, path);
     }
 
     // Remove this path if the operation is DELETE_FILE or DELETE_DIRECTORY
-    // else if(strcmp(response, VALID_STRING)==0)
+    else if(strcmp(response, VALID_STRING)==0 &&
+        (strcmp(type, DELETE_FILE)==0 || (strcmp(type, DELETE_DIRECTORY)==0)))
+    {
+        deleteAccessiblePath(server->ss_id, path);
+    }
 
     close(serverSocket);
 }
 
 
+// Function to copy files/folders between two paths
+void copyHandler(char* path1, char* path2, char* response, char* op)
+{
+    struct StorageServerInfo *server1, *server2;
+    if(strcmp(op, DELETE_FILE)==0 || strcmp(op, DELETE_DIRECTORY)==0){
+        server1 = searchStorageServer(path1);
+        server2 = searchStorageServer(path1);
+    }
+
+
+}
 
 
 
