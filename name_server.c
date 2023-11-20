@@ -398,25 +398,18 @@ void* handleClientRequests(void* socket)
         // Finding the minimum access path's storage server 
         char response[BUFFER_LENGTH];
         createFileNS(buffer, response);
+        printf("Response: %s\n", response);
+        
+        // Sending the response to client
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the createFile response back to client.\n");
+        }
+        else{
+            printf("sent\n");
+        }
+
     }
 
-    /*
-
-    // Searching for the storage server which stores that path and sending back storage server's IP and PORT
-    struct StorageServerInfo* storageServer = searchStorageServer(buffer);
-    
-    if(storageServer == NULL){
-        sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
-    }
-    else{
-        // Need to check if the storage server is still up (TODO)
-        sprintf(response, "%s:%d", storageServer->ip_address, storageServer->client_server_port);
-    }
-
-    if(send(client_socket, response, strlen(response), 0) < 0){
-        perror("[-] Error handleClientRequests(): Unable to send the response back");
-    }
-    */
     close(clientSocket);
     return NULL;
 }
@@ -430,9 +423,14 @@ void createFileNS(char* path, char* response)
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
         return;
     }
-    int serverSocket = server->serverSocket;
-    printf("Connected\n");
     // Need to handle redundancy here
+
+    int serverSocket = connectToServer(server->ip_address, server->naming_server_port);
+    if(serverSocket == -1){
+        sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
+        return;
+    }
+    printf("Connected\n");
     
 
     // Sending the operation number and receiving the confirmation for it from the storage server

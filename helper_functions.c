@@ -178,6 +178,7 @@ int receiveConfirmation(int serverSocket)
     if(createRecvThread(serverSocket, buffer)) 
         return -1;
     
+    printf("Received: %s\n", buffer);
     if(strcmp(buffer, VALID_STRING) != 0) {
         printf("[-] %s\n", buffer);
         return -1;
@@ -203,7 +204,6 @@ int receiveOperationNumber(int socket)
         return -1;
     }
 
-    printf("Buffer: %s\n", buffer);
     int op = checkOperationNumber(buffer);
     if(op == -1){
         sprintf(response, "%d", ERROR_INVALID_REQUEST_NUMBER);
@@ -238,19 +238,6 @@ int receivePath(int socket, char* buffer)
         return -1;
 
     return 0;
-}
-
-
-// Function to Sending the Path to the connected Nameserver/Storage Server
-int sendPath(int serverSocket, char* path)
-{
-    if(send(serverSocket, path, strlen(path), 0) < 0){
-        perror("[-] Error sendPath(): Unable to send the path to the server");
-        close(serverSocket);
-        return -1;
-    }
-    // Receiving the confirmation
-    return receiveConfirmation(serverSocket);
 }
 
 
@@ -355,5 +342,28 @@ int open_a_connection_port(int Port, int num_listener)
         perror("[-] Error: Unable to listen");
         return -1;
     }
+
     return socketOpened;
+}
+
+
+int connectToServer(const char* IP_address, const int PORT)
+{
+    /* Connect to the storage server given the IP and PORT */
+    int serverSocket;
+    if((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        perror("[-] Error connectToServer(): Connecting to Storage server");
+        return -1;
+    }
+
+    struct sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(PORT);
+    serverAddress.sin_addr.s_addr = inet_addr(IP_address);
+        
+    if (connect(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0){
+        perror("[-] Connection to new server failed");
+        return -1;
+    }
+    return serverSocket;
 }

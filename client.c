@@ -143,26 +143,7 @@ int parseIpPort(char *data, char *ip_address,int *ss_port)
 }
 
 
-int connectToStorageServer(const char* IP_address, const int PORT)
-{
-    /* Connect to the storage server given the IP and PORT */
-    int serverSocket;
-    if((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-        perror("[-] Error connectToStorageServer(): Connecting to Storage server");
-        return -1;
-    }
 
-    struct sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(PORT);
-    serverAddress.sin_addr.s_addr = inet_addr(IP_address);
-        
-    if (connect(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0){
-        perror("[-] Connection to new server failed");
-        return -1;
-    }
-    return serverSocket;
-}
 
 
 int checkResponse(char* response){
@@ -202,11 +183,11 @@ int connectAndCheckForFileExistence(char* path, char* operation_num)
         return -1;
     }
 
-    int serverSocket = connectToStorageServer(IP_address, PORT);
+    int serverSocket = connectToServer(IP_address, PORT);
     if(serverSocket < 0) return serverSocket;
 
-    if(sendPath(serverSocket, operation_num) == -1) return -1;
-    if(sendPath(serverSocket, path) == -1) return -1;
+    if(sendData(serverSocket, operation_num) == -1) return -1;
+    if(sendData(serverSocket, path) == -1) return -1;
     return serverSocket;
 }
 
@@ -220,7 +201,12 @@ void createFile(char* path)
         return;
 
     // Sending the file path to the nameserver
-    if(sendPath(nsSocket, path) < 0) return;
+    if(sendData(nsSocket, path) < 0) return;
+    
+    // Receiving the confirmation
+    if(receiveConfirmation(nsSocket) == 0){
+        printf("[+] File created\n");
+    }
     close(nsSocket);
 }
 

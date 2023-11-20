@@ -193,7 +193,7 @@ int fileExists(char *filename) {
 // Function to create a File
 void createFile(char* path, char* response)
 {
-    if(checkFilePathExists(path)){
+    if(fileExists(path)){
         sprintf(response, "%d", ERROR_FILE_ALREADY_EXISTS);
     }
 

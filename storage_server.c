@@ -17,7 +17,6 @@ int nsSocketID; // Main socket for communication with the Name server
 int nsPort;     // PORT for communication with Name server (user-specified)
 char nsIP[16];  // Assuming IPv4
 
-
 char Msg[ERROR_BUFFER_LENGTH];
 char paths_file[50] = ".paths_SS.txt";
 
@@ -190,8 +189,6 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 
 
 
-
-
 // Function to maintain a heart beat/pulse with the Name server
 void* NameServerPulseHandler()
 {
@@ -260,7 +257,7 @@ void* handleNameServerThread(void* args)
     
     // Receive the operation number and based on that path
     int op = receiveOperationNumber(nsSocket);
-    if(op) {
+    if(op == -1) {
         close(nsSocket);
         return NULL;
     }
@@ -272,6 +269,7 @@ void* handleNameServerThread(void* args)
             close(nsSocket);
             return NULL;
         }
+        printf("Path: %s\n", path);
 
         createFile(path, response);
         if(sendData(nsSocket, response)){
