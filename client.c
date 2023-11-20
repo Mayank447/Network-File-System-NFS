@@ -68,13 +68,14 @@ int sendCommandToNameServer(char* operation_num, char* path)
 
     // Sending the Operation number to the Name server
     if(send(nsSocket, operation_num, strlen(operation_num), 0) < 0){
-        perror("[-] Error sendCommandToNameServer(): Unable to send operation number to name_server");
+        perror("[-] Error sendCommandToNameServer(): Unable to send operation number to the Nameserver");
         close(nsSocket);
         return -1;
     }
 
     // Receiving the Operation Number Confirmation from the Nameserver and Checking if the operation is valid
     if(receiveConfirmation(nsSocket, buffer)){
+        perror("[-] Error sendCommandToNameServer(): Unable to receive confirmation from the Nameserver");
         close(nsSocket);
         return -1;
     } 

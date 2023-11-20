@@ -193,6 +193,53 @@ int checkOperationNumber(char* buffer)
     return num;
 }
 
+
+int receiveOperationNumber(int socket)
+{
+    char buffer[BUFFER_LENGTH], response[100];
+    if(createRecvThread(socket, buffer)){
+        printf("[-] Unable to receive the operation number from the nameserver\n");
+        return -1;
+    }
+
+    printf("Buffer: %s\n", buffer);
+    int op = checkOperationNumber(buffer);
+    if(op == -1){
+        sprintf(response, "%d", ERROR_INVALID_REQUEST_NUMBER);
+        printf("[-] Invalid Operation number\n");
+    }
+    else {
+        strcpy(response, VALID_STRING);
+    }
+
+
+    //Sending the confirmation for the received operation number
+    if(sendReponse(socket, response)){
+        printf("[-] Unable to send the response\n");
+        return -1;
+    }
+
+    if(op == -1) return -1;
+    return op;
+}
+
+int receivePath(int socket, char* buffer)
+{
+    // Receiving the path
+    if(createRecvThread(socket, buffer) != 0) 
+        return -1;
+
+    // Additional checks on path if any
+    
+
+    // Sending confirmation the path
+    if(sendConfirmation(socket) != 0) 
+        return -1;
+
+    return 0;
+}
+
+
 // Download a File - Receive data from a Socket and write to a File
 void downloadFile(char* filename, int socket)
 {

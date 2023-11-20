@@ -101,7 +101,7 @@ void* handleStorageServerInitialization()
 }
 
 
-// Individual thread handler for a server (connection initialization + heart beat)
+// Individual thread handler for a server (Connection initialization + heart beat)
 void* handleStorageServer(void* argument)
 {
     struct storageServerArg* args = (struct storageServerArg*)argument;
@@ -180,7 +180,7 @@ void* handleStorageServer(void* argument)
     // Check is the storage server is still up and running by sending a pulse every second
     int not_received_count = 0;
     server->running = 1;
-    
+
     while(1 && not_received_count < NOT_RECEIVED_COUNT){
         printf("Here\n");
         bzero(buffer, BUFFER_LENGTH);
@@ -215,6 +215,7 @@ int initConnectionToStorageServer(struct StorageServerInfo* server)
     storageServerAddr.sin_family = AF_INET;
     storageServerAddr.sin_port = htons(server->naming_server_port);
     storageServerAddr.sin_addr.s_addr = INADDR_ANY;
+    
     if (inet_pton(AF_INET, "127.0.0.1", &storageServerAddr.sin_addr.s_addr) < 0){
         perror("[-] Invalid address/Address not supported");
         close(serverSocket);
@@ -380,31 +381,20 @@ void* handleClients()
 void* handleClientRequests(void* socket)
 {
     int clientSocket = *(int*)socket;
-    char buffer[BUFFER_LENGTH], response[25]; // Stores the path received from the server
+    char buffer[BUFFER_LENGTH];
     
     // Receiving the operation number
-    if(createRecvThread(clientSocket, buffer) == -1)
+    int op = receiveOperationNumber(clientSocket);
+    if(op == -1){
+        close(clientSocket);
         return NULL;
-
-    // Checking the operation number
-    int op = checkOperationNumber(buffer);
-    if(op < 0) sprintf(response, "%d", ERROR_INVALID_REQUEST_NUMBER);
-    else strcpy(response, VALID_STRING);
-
-    // Sending confirmation for the op number received
-    if(sendReponse(clientSocket, response) != 0) return NULL;
-    if(op < 0) return NULL;
-
+    }
 
     // Creating files
     if(op == atoi(CREATE_FILE))
     {
-        // Receiving the path
-        if(createRecvThread(clientSocket, buffer) != 0) return NULL;
+        receivePath(clientSocket, buffer);
         printf("Path: %s\n", buffer);
-
-        // Sending confirmation the path
-        if(sendReponse(clientSocket, VALID_STRING) != 0) return NULL;
         
         // Finding the minimum access path's storage server 
         createFile(buffer);

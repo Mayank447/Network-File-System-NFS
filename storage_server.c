@@ -282,9 +282,24 @@ void NameServerThreadHandler()
     return;
 }
 
-
-void handleNameServerThread(void* args){
+// Function for communication between 
+void* handleNameServerThread(void* args)
+{
     int nsSocket = *(int*)args;
+    
+    // Receive the operation number and based on that path
+    int op = receiveOperationNumber(nsSocket);
+    if(op) {
+        close(nsSocket);
+        return NULL;
+    }
+
+    // Create File
+    if(op == 1){
+
+    }
+
+    return NULL;
 }
 
 
