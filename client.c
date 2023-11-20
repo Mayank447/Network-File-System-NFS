@@ -80,7 +80,7 @@ int sendOperation_PathToNameServer(char* operation_num, char* path)
         close(nsSocket);
         return -1;
     }
-    
+
     return nsSocket;
 }
 
@@ -106,26 +106,29 @@ int performNSOperation(char* op, char* path)
 
 
 // Function to fetch the Storage server IP and PORT
-int fetchStorageServerIP_Port(int nsSocket, const char* path, char* IP_address, int* PORT)
+int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 {   
-    // sendOperation_Path(path)
     char buffer[BUFFER_LENGTH];
-    if(recv(nsSocket, buffer, BUFFER_LENGTH, 0) < 0){
-        perror("[-] Error fetchStorageServerIP_Port(): Unable to receive the requested Storage server IP and PORT.");
+    if(createRecvThread(nsSocket, buffer)){
+        printf("[-] Error receiving Storage Server IP and PORT\n");
         close(nsSocket);
         return -1;
     }
+
     close(nsSocket);
     return parseIpPort(buffer, IP_address, PORT);
 }
 
 
+// Parsing the IP address and PORT for the storage server
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
-    if(atoi(data) != ERROR_PATH_DOES_NOT_EXIST) {
+    if(strcmp(data, ERROR_PATH_DOES_NOT_EXIST)!=0 ||
+        strcmp(data, NAME_SERVER_ERROR)!=0) {
         printf("[-] INVALID FILE PATH\n");
         return -1;
     }
+
     // IP address parsing format "IP:PORT"
     if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2){
         printf("[-] Error parsing storage server info: %s\n", data);
@@ -133,8 +136,6 @@ int parseIpPort(char *data, char *ip_address,int *ss_port)
     }
     return 0;
 }
-
-
 
 
 
@@ -167,37 +168,37 @@ int receiveAndCheckResponse(int serverSocket, char* error){
 
 
 
-int connectAndCheckForFileExistence(char* path, char* operation_num)
+////////////////////////////// FILE OPERATION /////////////////////////////
+
+// Function to download the specified file
+int readFile(char* path) 
 {
-    int PORT = 0;
-    char IP_address[20]; 
-    if(fetchStorageServerIP_Port(1, path, IP_address, &PORT) < 0) {
+    int nsSocket, PORT;
+    char IP_address[20], filename[MAX_FILE_NAME_LENGTH];;
+
+    if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
+        return -1;
+    }
+
+    if(getStorageServerIP_Port(nsSocket, IP_address, &PORT)){
+        printf("[-] Error fetching Storage Server IP Address or PORT\n");
         return -1;
     }
 
     int serverSocket = connectToServer(IP_address, PORT);
-    if(serverSocket < 0) return serverSocket;
-
-    if(sendData(serverSocket, operation_num) == -1) return -1;
-    if(sendData(serverSocket, path) == -1) return -1;
-    return serverSocket;
-}
-
-
-
-////////////////////////////// FILE OPERATION /////////////////////////////
-
-// Function to download the specified file
-void readFile(char* path) 
-{
-    if(sendOperation_PathToNameServer(READ_FILE, path) != -1){
-        printf("[+] File created successfully\n");
+    if(sendDataAndReceiveConfirmation(serverSocket, CREATE_FILE)){
+        printf("[-] Error sending or receiving confirmation for Operation Number\n");
+        close(serverSocket);
+        return -1;
     }
-    int serverSocket = connectAndCheckForFileExistence(path, "3");
-    if(serverSocket < 0) return;
+
+    if(sendDataAndReceiveConfirmation(serverSocket, path)){
+        printf("[-] Error sending or receiving confirmation for Path\n");
+        close(serverSocket);
+        return -1;
+    }
 
     // Receiving the file
-    char filename[MAX_FILE_NAME_LENGTH];
     extractFileName(path, filename);
     downloadFile(filename, serverSocket);
     close(serverSocket);
@@ -206,8 +207,30 @@ void readFile(char* path)
 
 void writeToFile(char* path, char* data) // Function to upload a file to the server
 {
-    int serverSocket = connectAndCheckForFileExistence(path, "4");
-    if(serverSocket < 0) return;
+    int nsSocket, PORT;
+    char IP_address[20], filename[MAX_FILE_NAME_LENGTH];;
+
+    if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
+        return -1;
+    }
+
+    if(getStorageServerIP_Port(nsSocket, IP_address, &PORT)){
+        printf("[-] Error fetching Storage Server IP Address or PORT\n");
+        return -1;
+    }
+
+    int serverSocket = connectToServer(IP_address, PORT);
+    if(sendDataAndReceiveConfirmation(serverSocket, WRITE_FILE)){
+        printf("[-] Error sending or receiving confirmation for Operation Number\n");
+        close(serverSocket);
+        return -1;
+    }
+
+    if(sendDataAndReceiveConfirmation(serverSocket, path)){
+        printf("[-] Error sending or receiving confirmation for Path\n");
+        close(serverSocket);
+        return -1;
+    }
 
     // Ready to send data
     if(send(serverSocket, "0", 1, 0) < 0){
@@ -245,8 +268,30 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
 
 void getPermissions(char* path)
 {
-    int serverSocket = connectAndCheckForFileExistence(path, "5");
-    if(serverSocket < 0) return;
+    int nsSocket, PORT;
+    char IP_address[20], filename[MAX_FILE_NAME_LENGTH];;
+
+    if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
+        return -1;
+    }
+
+    if(getStorageServerIP_Port(nsSocket, IP_address, &PORT)){
+        printf("[-] Error fetching Storage Server IP Address or PORT\n");
+        return -1;
+    }
+
+    int serverSocket = connectToServer(IP_address, PORT);
+    if(sendDataAndReceiveConfirmation(serverSocket, GET_FILE_PERMISSIONS)){
+        printf("[-] Error sending or receiving confirmation for Operation Number\n");
+        close(serverSocket);
+        return -1;
+    }
+
+    if(sendDataAndReceiveConfirmation(serverSocket, path)){
+        printf("[-] Error sending or receiving confirmation for Path\n");
+        close(serverSocket);
+        return -1;
+    }
     
     // Receiving the file permission from the server
     char buffer[BUFFER_LENGTH];
