@@ -263,23 +263,10 @@ void deleteFile(char *filename, char* response)
 }
 
 
-// Copy files between 2 servers - copyFilesender()*/                -------------------------- implement later
-// int copyFile_sender(const char *sourcePath, struct sockaddr_in server_address) {
-//     int serverSocket;
-//     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-//         perror("[-] Error connecting to server");
-//         return 1;
-//     }
-//     sendFile_server_to_client(sourcePath, serverSocket);
-//     return 0;
-// }
-// // Copy files between 2 servers - copyFileReceiver()*/                -------------------------- implement later
-// int copyFile_receiver(const char *destinationPath, struct sockaddr_in server_address) {
-//     int serverSocket;
-//     if(connect(serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1){
-//         perror("[-] Error connecting to server");
-//         return 1;
-//     }
-//     uploadFile_client_to_server(destinationPath, serverSocket);
-//     return 0;
-// }
+void copyFile(char* ss_path, char* response){
+
+}
+
+void copyDirectory(char* ss_path, char* response){
+
+}

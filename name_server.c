@@ -25,6 +25,22 @@ void handle_signal(int signum) {
     exit(signum);
 }
 
+char* NameServerLog = "log.txt";
+char Msg[1000];
+
+void logger(char* text, char* IP, int PORT) 
+{
+    FILE *logFile = fopen(NameServerLog, "a"); // Open the file in append mode
+    if (logFile != NULL) {
+        //write the log in IP:127.0.0.1;PORT:8089;STATUS:text format
+        fprintf(logFile, "IP:%s;PORT:%d;STATUS:%s\n", IP, PORT, text);
+        fclose(logFile);
+    } else {
+        // Handle file opening error
+        fprintf(stderr, "Error opening log file %s\n", NameServerLog);
+    }
+}
+
 
 ///////////////////////////// STORAGE SERVER INITIALIZATION/////////////////////////////
 int ss_count = 0;                                                   // Count of no. of storage servers
@@ -76,7 +92,8 @@ void* handleStorageServerInitialization()
         }
 
         printf("[+] Storage Server Connection accepted from %s:%d\n", inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
-        
+        logger("Storage Server Connection accepted",inet_ntoa(server_address.sin_addr),ntohs(server_address.sin_port));
+
         // Create a new thread for each storage server
         args[ss_count].socket = serverSocket;
         args[ss_count].ss_id = ss_count + 1;
@@ -171,9 +188,11 @@ void* handleStorageServer(void* argument)
     if(serverSocket != -1){
         server->serverSocket = serverSocket;
         printf("[+] Storage server %d initialization done.\n", serverID);
+        logger("New Storage Server is Initialised",ip_address, naming_server_port);
     }
     else{
         printf("[-] Error connecting to specificied PORT. This error needs to be handled.\n");
+        logger("Error connecting to specificied SS PORT",ip_address, naming_server_port);
         return NULL;
     }
 
@@ -187,7 +206,7 @@ void* handleStorageServer(void* argument)
         if(sendData(serverSocket, "DOWN")) continue;
         sleep(PERIODIC_HEART_BEAT);
 
-        if(createRecvThreadPeriodic(serverSocket, buffer)) {
+        if(nonBlockingRecvPeriodic(serverSocket, buffer)) {
             not_received_count++;
             continue;
         }
@@ -195,7 +214,8 @@ void* handleStorageServer(void* argument)
         if(strcmp(buffer, "UP") != 0) break;
     }
     server->running = 0;
-    printf("Storage server %d is down\n", serverID);
+    sprintf(Msg, "Storage server %d is down\n", serverID);
+    logger(Msg, ip_address, naming_server_port);
     close(serverSocket);
     return NULL;
 }
@@ -352,11 +372,15 @@ void cleanStorageServerInfoLinkedList()
 void* handleClients()
 {
     while(1){
-        int newClientSocket = accept(clientSocket, NULL, NULL);
+        struct sockaddr_in client_address;
+        socklen_t address_size = sizeof(struct sockaddr_in);
+        int newClientSocket = accept(clientSocket, (struct sockaddr*)&client_address, &address_size);
         if (newClientSocket < 0) {
             perror("[-] Error handleClients(): Client accept failed");
             continue;
-        }      
+        }     
+
+        logger("New Client Connection accepted", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
 
         // Create a new thread for each new client
         pthread_t clientThread;
@@ -382,6 +406,10 @@ void* handleClientRequests(void* socket)
     int clientSocket = *(int*)socket;
     char path[BUFFER_LENGTH];
     char response[BUFFER_LENGTH];
+
+    struct sockaddr_in clientAddress;
+    socklen_t clientAddrLen = sizeof(clientAddress);
+    getpeername(clientSocket, (struct sockaddr *)&clientAddress, &clientAddrLen);
     
     // Receiving the operation number
     int op = receiveOperationNumber(clientSocket);
@@ -389,9 +417,10 @@ void* handleClientRequests(void* socket)
         close(clientSocket);
         return NULL;
     }
+    
 
     // Receiving the path
-    if(createRecvThread(clientSocket, path)){
+    if(nonBlockingRecv(clientSocket, path)){
         close(clientSocket);
         return NULL;
     }
@@ -444,7 +473,7 @@ void* handleClientRequests(void* socket)
     // Copy files
     else if(op == atoi(COPY_FILES)){ 
         char path2[BUFFER_LENGTH];
-        if(createRecvThread(clientSocket, path2)){
+        if(nonBlockingRecv(clientSocket, path2)){
             close(clientSocket);
             return NULL;
         }
@@ -458,7 +487,7 @@ void* handleClientRequests(void* socket)
     // Copy Folders
     else if(op == atoi(COPY_DIRECTORY)){ 
         char path2[BUFFER_LENGTH];
-        if(createRecvThread(clientSocket, path2)){
+        if(nonBlockingRecv(clientSocket, path2)){
             close(clientSocket);
             return NULL;
         }
@@ -520,7 +549,7 @@ void createDeletionHandler(char* path, char* response, char* type)
     }
 
     // Receiving the response (status of operation)
-    if(createRecvThread(serverSocket, response)) {
+    if(nonBlockingRecv(serverSocket, response)) {
         sprintf(response, "%d", STORAGE_SERVER_ERROR);
         close(serverSocket);
         return;
@@ -591,7 +620,7 @@ void copyHandler(char* path1, char* path2, char* response, char* op)
     }
 
     // Receiving the status of operation
-    if(createRecvThread(serverSocket, response)) {
+    if(nonBlockingRecv(serverSocket, response)) {
         sprintf(response, "%d", STORAGE_SERVER_ERROR);
         close(serverSocket);
         return;

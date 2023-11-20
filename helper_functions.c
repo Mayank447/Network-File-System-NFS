@@ -57,6 +57,13 @@ void handleErrorCodes(char* response, char* message)
         strcpy(message, "SERVER ERROR: ERROR GETTING FILE PERMISSIONS");
 }
 
+// Function to print error given the string contaning the error code 
+void printError(char* response){
+    char error_message[ERROR_BUFFER_LENGTH];
+    handleErrorCodes(response, error_message);
+    printf("[-] %s\n", error_message);
+}
+
 // Remove leading whitespaces
 void trim(char *str) {
     int i=0, j=0, len = strlen(str);
@@ -97,7 +104,7 @@ void* receiveInfo(void* thread_args)
 
 
 // Thread creating function for receiveInfo()
-int createRecvThread(int serverSocket, char* buffer)
+int nonBlockingRecv(int serverSocket, char* buffer)
 {
     struct ReceiveThreadArgs args;
     args.buffer = buffer;
@@ -125,7 +132,7 @@ int createRecvThread(int serverSocket, char* buffer)
 
 
 // Thread creating function for receiveInfo() every 5s
-int createRecvThreadPeriodic(int serverSocket, char* buffer)
+int nonBlockingRecvPeriodic(int serverSocket, char* buffer)
 {
     struct ReceiveThreadArgs args;
     args.buffer = buffer;
@@ -169,17 +176,15 @@ int sendConfirmation(int socket){
     return 0;
 }
 
-// Wrapper around CreateRecvThread to check for confirmation
+// Wrapper around nonBlockingRecv to check for confirmation
 int receiveConfirmation(int serverSocket)
 {
     char buffer[BUFFER_LENGTH];
-    if(createRecvThread(serverSocket, buffer)) 
+    if(nonBlockingRecv(serverSocket, buffer)) 
         return -1;
     
     if(strcmp(buffer, VALID_STRING) != 0) {
-        char error[BUFFER_LENGTH];
-        handleErrorCodes(buffer, error);
-        printf("[-] %s\n", error);
+        printError(buffer);
         return -1;
     }
     return 0;
@@ -198,7 +203,7 @@ int checkOperationNumber(char* buffer)
 int receiveOperationNumber(int socket)
 {
     char buffer[BUFFER_LENGTH], response[100];
-    if(createRecvThread(socket, buffer)){
+    if(nonBlockingRecv(socket, buffer)){
         printf("[-] Unable to receive the operation number from the nameserver\n");
         return -1;
     }
@@ -226,10 +231,10 @@ int receiveOperationNumber(int socket)
 int receivePath(int socket, char* buffer)
 {
     // Receiving the path
-    if(createRecvThread(socket, buffer) != 0) 
+    if(nonBlockingRecv(socket, buffer) != 0) 
         return -1;
 
-    // Additional checks on path if any
+    // Additional checks on path if any (TODO)
 
 
     // Sending confirmation the path
@@ -330,7 +335,7 @@ int open_a_connection_port(int Port, int num_listener)
 
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(Port);
-    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
 
     // Binding the socket
     if(bind(socketOpened, (struct sockaddr *)&serverAddress, sizeof(serverAddress))<0){
@@ -348,9 +353,9 @@ int open_a_connection_port(int Port, int num_listener)
 }
 
 
+// Function that connects and return the socket given IP, PORT, 0 otherwise
 int connectToServer(const char* IP_address, const int PORT)
 {
-    /* Connect to the storage server given the IP and PORT */
     int serverSocket;
     if((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         perror("[-] Error connectToServer(): Connecting to Storage server");
@@ -369,7 +374,7 @@ int connectToServer(const char* IP_address, const int PORT)
     return serverSocket;
 }
 
-
+// Function to send the specified data and wait for confirmation i.e. VALID_STRING
 int sendDataAndReceiveConfirmation(int socket, char* data){
     if(sendData(socket, data)){
         return -1;

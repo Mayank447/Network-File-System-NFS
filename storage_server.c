@@ -206,7 +206,7 @@ void* NameServerPulseHandler()
     {
         // Receiving the operation code from Nameserver
         bzero(buffer, BUFFER_LENGTH);
-        if(createRecvThreadPeriodic(nsSocket, buffer)) {
+        if(nonBlockingRecvPeriodic(nsSocket, buffer)) {
             not_received_count++;
             continue;
         }
@@ -251,7 +251,7 @@ void NameServerThreadHandler()
 }
 
 
-// Function for communication between 
+// Function for communication between NS and SS for client functions
 void* handleNameServerThread(void* args)
 {
     int nsSocket = *(int*)args;
@@ -301,8 +301,23 @@ void* handleNameServerThread(void* args)
             printf("[-] Error sending deleteDirectory() response to Name server\n");
         }
     }
-    
 
+    // Delete File
+    else if(op == atoi(COPY_FILES)){
+        copyFile(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending deleteFile() response to Name server\n");
+        }
+    }
+
+    // Delete Directory
+    else if(op == atoi(COPY_DIRECTORY)){
+        copyDirectory(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending deleteDirectory() response to Name server\n");
+        }
+    }
+    
     close(nsSocket);
     return NULL;
 }

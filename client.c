@@ -109,7 +109,7 @@ int performNSOperation(char* op, char* path)
 int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 {   
     char buffer[BUFFER_LENGTH];
-    if(createRecvThread(nsSocket, buffer)){
+    if(nonBlockingRecv(nsSocket, buffer)){
         printf("[-] Error receiving Storage Server IP and PORT\n");
         close(nsSocket);
         return -1;
@@ -123,8 +123,8 @@ int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 // Parsing the IP address and PORT for the storage server
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
-    if(strcmp(data, ERROR_PATH_DOES_NOT_EXIST)!=0 ||
-        strcmp(data, NAME_SERVER_ERROR)!=0) {
+    if(atoi(data) == ERROR_PATH_DOES_NOT_EXIST ||
+        atoi(data) == NAME_SERVER_ERROR) {
         printf("[-] INVALID FILE PATH\n");
         return -1;
     }
@@ -136,34 +136,6 @@ int parseIpPort(char *data, char *ip_address,int *ss_port)
     }
     return 0;
 }
-
-
-
-int checkResponse(char* response){
-    // Print error based on ERROR-CODE (if response!=0)
-    if(strcmp(response, VALID_STRING)==0){
-        bzero(error_message, ERROR_BUFFER_LENGTH);
-        handleErrorCodes(response, error_message);
-        printf("[-] %s\n", error_message);
-        return -1;
-    }
-    return 0;
-}
-
-
-int receiveAndCheckResponse(int serverSocket, char* error){
-    char response[20];
-    if(recv(serverSocket, response, sizeof(response), 0) < 0){
-        printf("[-] %s\n", error);
-        close(serverSocket);
-        return -1;
-    }
-
-    int check = checkResponse(response);
-    if(check < 0) close(serverSocket);
-    return check;
-}
-
 
 
 
@@ -202,13 +174,14 @@ int readFile(char* path)
     extractFileName(path, filename);
     downloadFile(filename, serverSocket);
     close(serverSocket);
+    return 0;
 }
 
 
-void writeToFile(char* path, char* data) // Function to upload a file to the server
+int writeToFile(char* path, char* data) // Function to upload a file to the server
 {
     int nsSocket, PORT;
-    char IP_address[20], filename[MAX_FILE_NAME_LENGTH];;
+    char IP_address[20];
 
     if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
         return -1;
@@ -236,7 +209,7 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
     if(send(serverSocket, "0", 1, 0) < 0){
         perror("[-] Error writeToFile(): Unable to send ready to send message");
         close(serverSocket);
-        return;
+        return -1;
     }
 
     // Break data into buffer chunks and send
@@ -256,20 +229,22 @@ void writeToFile(char* path, char* data) // Function to upload a file to the ser
 
         if (bytes_sent == -1) {
             perror("[-] Error writeToFile(): Send failed");
-            break;
+            close(serverSocket);
+            return -1;
         }
         sent_bytes += bytes_sent; // Update the total sent bytes
     }
 
     printf("[+] Uploaded File successfully\n");
     close(serverSocket);
+    return 0;
 }
 
 
-void getPermissions(char* path)
+int getPermissions(char* path)
 {
     int nsSocket, PORT;
-    char IP_address[20], filename[MAX_FILE_NAME_LENGTH];;
+    char IP_address[20];
 
     if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
         return -1;
@@ -295,19 +270,18 @@ void getPermissions(char* path)
     
     // Receiving the file permission from the server
     char buffer[BUFFER_LENGTH];
-    if(recv(serverSocket, buffer, BUFFER_LENGTH, 0) < 0){
-        perror("[-] Error getPermissions(): receiving the file permission");
+    if(nonBlockingRecv(serverSocket, buffer)){
         close(serverSocket);
-        return;
+        return -1;
     }
 
     // Checking for an error
-    int response = atoi(buffer);
-    if(response == STORAGE_SERVER_ERROR || response == ERROR_GETTING_FILE_PERMISSIONS){
-        checkResponse(buffer);
-        return;
+    if(atoi(buffer) != 0){
+        printError(buffer);
+        return -1;
     }
     parseMetadata(buffer);
+    return 0;
 }
 
 
@@ -400,12 +374,17 @@ int main()
         // Copy File
         else if(op == 8){
             getFilePath(path1);
-            // copyFile(path1);  
+            if(performNSOperation(COPY_FILES, path1) != -1){
+                printf("[+] Directory deleted successfully\n");
+            }  
         }
 
         // Copy Directory
         else if(op == 9){
             getDirectoryPath(path1);
+            if(performNSOperation(COPY_DIRECTORY, path1) != -1){
+                printf("[+] Directory deleted successfully\n");
+            } 
         }
 
         else printf("[-] Invalid operation\n");

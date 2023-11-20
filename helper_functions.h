@@ -26,8 +26,10 @@ void uploadFile(char* filename, int socket);
 // print the error based on the valid bit to message string
 void handleErrorCodes(char* valid, char* message);
 void handleErrorCodes(char* valid, char* message);
-int createRecvThread(int serverSocket, char* buffer);
-int createRecvThreadPeriodic(int serverSocket, char* buffer);
+void printError(char* response);
+
+int nonBlockingRecv(int serverSocket, char* buffer);
+int nonBlockingRecvPeriodic(int serverSocket, char* buffer);
 
 int checkOperationNumber(char* buffer);
 int receiveOperationNumber(int socket);
