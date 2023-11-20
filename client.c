@@ -393,7 +393,9 @@ int main()
         // Delete Directory
         else if(op == 7){
             getDirectoryPath(path1);
-            // deleteDirectory(path1);
+            if(sendOperation_Path(DELETE_DIRECTORY, path1) != -1){
+                printf("[+] Directory deleted successfully\n");
+            }  
         }
 
         // Copy File

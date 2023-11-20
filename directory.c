@@ -71,8 +71,65 @@ void createDirectory(char* path, char* response)
 }
 
 
-void deleteDirectory(char* path, char* response){
-    
+void deleteDirectory(char* path, char* response)
+{
+    char path_copy[300];
+    strcpy(path_copy,path); // Create a copy of the path
+
+    char *token = strtok(path_copy, "/"); // Tokenize the path
+    char current_dir[256]; // Initialize a buffer for the current directory
+
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        perror("[-] Error creating child process");
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        return;
+    }
+
+    else if (childPid == 0)
+    {
+        // This is the child process
+        while (token != NULL)
+        {
+            // Append the next directory to the current directory
+            strcat(current_dir, token);
+
+            // Check if the directory already exists
+            struct stat st;
+            if (stat(token, &st) == -1) {
+                sprintf(response, "%d", ERROR_DIRECTORY_DOES_NOT_EXIST);
+                exit(EXIT_FAILURE);
+            }
+
+            if(token != NULL) {
+                strcpy(current_dir, token);
+                if(chdir(token) != 0) {
+                    sprintf(response, "%d", STORAGE_SERVER_ERROR);
+                    exit(EXIT_FAILURE);
+                }
+            }
+            token = strtok(NULL, "/");
+        }
+
+        if(token == NULL){
+           chdir("..");
+           rmdir(current_dir);
+            exit(EXIT_SUCCESS);
+        }
+        exit(EXIT_FAILURE);
+    }
+
+    else {
+        // This is the parent process
+        int status;
+        waitpid(childPid, &status, 0);
+
+        if (WIFEXITED(status)) 
+            strcpy(response, VALID_STRING);
+        else{
+            sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        }
+    }
 }
 
 /*

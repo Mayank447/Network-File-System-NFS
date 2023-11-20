@@ -390,6 +390,7 @@ void* handleClientRequests(void* socket)
     }
 
     // Receiving the path
+    char response[BUFFER_LENGTH];
     if(createRecvThread(clientSocket, path)){
         close(clientSocket);
         return NULL;
@@ -400,8 +401,6 @@ void* handleClientRequests(void* socket)
     // Creating files
     if(op == atoi(CREATE_FILE))
     {        
-        // Finding the minimum access path's storage server 
-        char response[BUFFER_LENGTH];
         functionHandler(path, response, CREATE_FILE);
 
         // Sending the response to client
@@ -413,8 +412,6 @@ void* handleClientRequests(void* socket)
     // Creating files
     else if(op == atoi(CREATE_DIRECTORY))
     {        
-        // Finding the minimum access path's storage server 
-        char response[BUFFER_LENGTH];
         functionHandler(path, response, CREATE_DIRECTORY);
 
         // Sending the response to client
@@ -426,9 +423,7 @@ void* handleClientRequests(void* socket)
     // Deleting files
     else if(op == atoi(DELETE_FILE))
     {        
-        char response[BUFFER_LENGTH];
         functionHandler(path, response, DELETE_FILE);
-        printf("Response: %s\n", response);
 
         // Sending the response to client
         if(sendData(clientSocket, response)) {
@@ -439,9 +434,7 @@ void* handleClientRequests(void* socket)
     // Delete Folder
     else if(op == atoi(DELETE_DIRECTORY))
     {        
-        char response[BUFFER_LENGTH];
         functionHandler(path, response, DELETE_DIRECTORY);
-        printf("Response: %s\n", response);
 
         // Sending the response to client
         if(sendData(clientSocket, response)) {

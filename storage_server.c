@@ -290,7 +290,15 @@ void* handleNameServerThread(void* args)
     else if(op == atoi(DELETE_FILE)){
         deleteFile(path, response);
         if(sendData(nsSocket, response)){
-            printf("[-] Error sending createDirectory() response to Name server\n");
+            printf("[-] Error sending deleteFile() response to Name server\n");
+        }
+    }
+
+    // Delete Directory
+    else if(op == atoi(DELETE_DIRECTORY)){
+        deleteDirectory(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending deleteDirectory() response to Name server\n");
         }
     }
     
