@@ -13,7 +13,7 @@ void cleanUpFileStruct();
 // ACTUAL FILE FUNCTIONS
 int checkFileType(char* path);
 int fileExists(char *filename);
-void createFile(char* path, int clientSocket);
+void createFile(char* path, char* response);
 void deleteFile(char *filename, int clientSocketID);
 
 #endif

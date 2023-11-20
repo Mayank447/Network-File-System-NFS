@@ -191,9 +191,8 @@ int fileExists(char *filename) {
 
 
 // Function to create a File
-void createFile(char* path, int clientSocket)
+void createFile(char* path, char* response)
 {
-    char response[SEND_BUFFER_LENGTH];
     if(checkFilePathExists(path)){
         sprintf(response, "%d", ERROR_FILE_ALREADY_EXISTS);
     }
@@ -206,12 +205,8 @@ void createFile(char* path, int clientSocket)
         else{
             fclose(file);
             addFile(path, 0);
-            strcpy(response, "0");
+            strcpy(response, VALID_STRING);
         }
-    }
-
-    if(send(clientSocket, response, strlen(response), 0) < 0){
-        perror("[-] Error createFile(): Send reponse failed");
     }
 }
 

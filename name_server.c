@@ -182,10 +182,9 @@ void* handleStorageServer(void* argument)
     server->running = 1;
 
     while(1 && not_received_count < NOT_RECEIVED_COUNT){
-        printf("Here\n");
         bzero(buffer, BUFFER_LENGTH);
 
-        if(sendReponse(serverSocket, "DOWN")) continue;
+        if(sendData(serverSocket, "DOWN")) continue;
         sleep(PERIODIC_HEART_BEAT);
 
         if(createRecvThreadPeriodic(serverSocket, buffer)) {
@@ -393,11 +392,12 @@ void* handleClientRequests(void* socket)
     // Creating files
     if(op == atoi(CREATE_FILE))
     {
-        receivePath(clientSocket, buffer);
+        createRecvThread(clientSocket, buffer);
         printf("Path: %s\n", buffer);
         
         // Finding the minimum access path's storage server 
-        createFile(buffer);
+        char response[BUFFER_LENGTH];
+        createFileNS(buffer, response);
     }
 
     /*
@@ -423,34 +423,50 @@ void* handleClientRequests(void* socket)
 
 
 // Function to create File inside a storage server
-int createFile(char* path)
+void createFileNS(char* path, char* response)
 {
     struct StorageServerInfo* server = minAccessiblePathSS();
-    if(server == NULL) return -1;
-    int serverSocket = server->serverSocket;
-    
-    // Sending the operation number and receiving the confirmation for it from the storage server
-    if(send(serverSocket, CREATE_FILE, strlen(CREATE_FILE), 0) < 0){
-        perror("[-] Error createFile(): Unable to send the create file command to the Storage Server");
-        return -1;
+    if(server == NULL) {
+        sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
+        return;
     }
+    int serverSocket = server->serverSocket;
+    printf("Connected\n");
+    // Need to handle redundancy here
+    
 
-    char buffer[BUFFER_LENGTH];
-    if(receiveConfirmation(serverSocket, buffer)) return -1;
+    // Sending the operation number and receiving the confirmation for it from the storage server
+    if(sendData(serverSocket, CREATE_FILE)){
+        printf("[-] Error createFile(): Unable to send the create file command to the Storage Server");
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
+    if(receiveConfirmation(serverSocket)) {
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
 
 
     // Sending the file path and receiving the confirmation for it from the storage server
-    if(send(serverSocket, path, strlen(path), 0) < 0){
-        perror("[-] Error createFile(): Unable to send the file path to the Storage Server");
-        return -1;
+    if(sendData(serverSocket, path)){
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        printf("[-] Error createFile(): Unable to send the file path to the Storage Server");
+        close(serverSocket);
+        return;
     }
-    bzero(buffer, BUFFER_LENGTH);
-    if(receiveConfirmation(serverSocket, buffer)) return -1;
+    if(receiveConfirmation(serverSocket)) {
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
 
-    bzero(buffer, BUFFER_LENGTH);
-    if(createRecvThread(serverSocket, buffer)) return -1;
-
-   return 0;
+    // Receiving the response (status of operation)
+    if(createRecvThread(serverSocket, response)) {
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+    }
+    close(serverSocket);
 }
 
 

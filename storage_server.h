@@ -16,7 +16,6 @@ char ErrorMsg[1024];
 
 
 // Functions for files
-void createFile(char* path, int clientSocketID);
 void deleteFile(char* filename, int clientSocketID);
 void getFileMetaData(char* filename, int clientSocketID);
 void write_releaseLock(File *file, int clientID);

@@ -32,8 +32,10 @@ int createRecvThreadPeriodic(int serverSocket, char* buffer);
 int checkOperationNumber(char* buffer);
 int receiveOperationNumber(int socket);
 int receivePath(int socket, char* buffer);
-int sendReponse(int socket, char* response);
+int sendData(int socket, char* response);
 int sendConfirmation(int socket);
-int receiveConfirmation(int serverSocket, char* buffer);
+int receiveConfirmation(int serverSocket);
+int sendPath(int socket, char* buffer);
+int open_a_connection_port(int Port, int num_listener);
 
 #endif

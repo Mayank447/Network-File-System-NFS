@@ -154,7 +154,7 @@ int createRecvThreadPeriodic(int serverSocket, char* buffer)
 
 
 // Thread to send response
-int sendReponse(int socket, char* response){
+int sendData(int socket, char* response){
     if(send(socket, response, strlen(response), 0) < 0){
         perror("[-] sendConfirmation(): Error sending confirmation");
         return -1;
@@ -172,8 +172,9 @@ int sendConfirmation(int socket){
 }
 
 // Wrapper around CreateRecvThread to check for confirmation
-int receiveConfirmation(int serverSocket, char* buffer)
+int receiveConfirmation(int serverSocket)
 {
+    char buffer[BUFFER_LENGTH];
     if(createRecvThread(serverSocket, buffer)) 
         return -1;
     
@@ -214,7 +215,7 @@ int receiveOperationNumber(int socket)
 
 
     //Sending the confirmation for the received operation number
-    if(sendReponse(socket, response)){
+    if(sendData(socket, response)){
         printf("[-] Unable to send the response\n");
         return -1;
     }
@@ -230,13 +231,26 @@ int receivePath(int socket, char* buffer)
         return -1;
 
     // Additional checks on path if any
-    
+
 
     // Sending confirmation the path
     if(sendConfirmation(socket) != 0) 
         return -1;
 
     return 0;
+}
+
+
+// Function to Sending the Path to the connected Nameserver/Storage Server
+int sendPath(int serverSocket, char* path)
+{
+    if(send(serverSocket, path, strlen(path), 0) < 0){
+        perror("[-] Error sendPath(): Unable to send the path to the server");
+        close(serverSocket);
+        return -1;
+    }
+    // Receiving the confirmation
+    return receiveConfirmation(serverSocket);
 }
 
 
@@ -311,4 +325,35 @@ void uploadFile(char *filename, int clientSocket)
         fclose(file);
         printf("File %s sent successfully.\n", filename);
     }
+}
+
+
+// Function to open a connection to a PORT and accept a single connection
+int open_a_connection_port(int Port, int num_listener)
+{
+    int socketOpened = socket(AF_INET, SOCK_STREAM, 0);
+    if (socketOpened < 0){
+        perror("[-] Error open_a_connection_port: opening socket");
+        return -1;
+    }
+    
+    struct sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(Port);
+    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // Binding the socket
+    if(bind(socketOpened, (struct sockaddr *)&serverAddress, sizeof(serverAddress))<0){
+        perror("[-] Error open_a_connection_port: binding socket");
+        return -1;
+    }
+
+    // Listening for connection
+    if (listen(socketOpened, num_listener) == -1){
+        perror("[-] Error: Unable to listen");
+        return -1;
+    }
+    return socketOpened;
 }

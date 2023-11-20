@@ -40,7 +40,6 @@ int sendCommandToNameServer(char* operation_num, char* path)
 {
     int nsSocket; // Socket from client side to name-server
     struct sockaddr_in name_server_address;
-    char buffer[BUFFER_LENGTH];
 
     // Opening a socket for connection with the nameserver
     if ((nsSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -74,7 +73,7 @@ int sendCommandToNameServer(char* operation_num, char* path)
     }
 
     // Receiving the Operation Number Confirmation from the Nameserver and Checking if the operation is valid
-    if(receiveConfirmation(nsSocket, buffer)){
+    if(receiveConfirmation(nsSocket)){
         perror("[-] Error sendCommandToNameServer(): Unable to receive confirmation from the Nameserver");
         close(nsSocket);
         return -1;
@@ -192,19 +191,7 @@ int receiveAndCheckResponse(int serverSocket, char* error){
 }
 
 
-// Function to Sending the Path to the connected Nameserver/Storage Server
-int sendPath(int serverSocket, char* path)
-{
-    if(send(serverSocket, path, strlen(path), 0) < 0){
-        perror("[-] Error sendPath(): Unable to send the path to the server");
-        close(serverSocket);
-        return -1;
-    }
 
-    // Receiving the confirmation
-    char buffer[BUFFER_LENGTH];
-    return receiveConfirmation(serverSocket, buffer);
-}
 
 
 int connectAndCheckForFileExistence(char* path, char* operation_num)

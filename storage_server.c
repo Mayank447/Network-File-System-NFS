@@ -189,35 +189,7 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 }
 
 
-// Function to open a connection to a PORT and accept a single connection
-int open_a_connection_port(int Port, int num_listener)
-{
-    int socketOpened = socket(AF_INET, SOCK_STREAM, 0);
-    if (socketOpened < 0){
-        perror("[-] Error open_a_connection_port: opening socket");
-        return -1;
-    }
-    
-    struct sockaddr_in serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
 
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(Port);
-    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    // Binding the socket
-    if(bind(socketOpened, (struct sockaddr *)&serverAddress, sizeof(serverAddress))<0){
-        perror("[-] Error open_a_connection_port: binding socket");
-        return -1;
-    }
-
-    // Listening for connection
-    if (listen(socketOpened, num_listener) == -1){
-        perror("[-] Error: Unable to listen");
-        return -1;
-    }
-    return socketOpened;
-}
 
 
 // Function to maintain a heart beat/pulse with the Name server
@@ -236,7 +208,6 @@ void* NameServerPulseHandler()
     while(1 && not_received_count < NOT_RECEIVED_COUNT)
     {
         // Receiving the operation code from Nameserver
-        printf("Here\n");
         bzero(buffer, BUFFER_LENGTH);
         if(createRecvThreadPeriodic(nsSocket, buffer)) {
             not_received_count++;
@@ -245,7 +216,7 @@ void* NameServerPulseHandler()
         not_received_count = 0;
 
         if(strcmp(buffer, "DOWN") != 0) break;
-        if(sendReponse(nsSocket, "UP")) continue;
+        if(sendData(nsSocket, "UP")) continue;
         sleep(PERIODIC_HEART_BEAT);
     }
     printf("[-] Connection with Nameserver is broken\n");
@@ -296,9 +267,19 @@ void* handleNameServerThread(void* args)
 
     // Create File
     if(op == 1){
+        char path[BUFFER_LENGTH], response[100];
+        if(receivePath(nsSocket, path)){
+            close(nsSocket);
+            return NULL;
+        }
 
+        createFile(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending createFile() response to Name server\n");
+        }
     }
 
+    close(nsSocket);
     return NULL;
 }
 
@@ -402,18 +383,9 @@ void* handleClientRequest(void* argument)
     File file;
     char filepath[MAX_PATH_LENGTH];
 
-    // CREATE FILE
-    if(request_no == 1 && receiveAndValidateFilePath(clientSocket, filepath, 1, NULL, 0) == 0) {
-        createFile(filepath, clientSocket);
-    }
-
-    // CREATE DIRECTORY
-    else if(request_no == 2){
-
-    }
 
     //READ FILE
-    else if(request_no == 3 && receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0) {
+    if(request_no == 3 && receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0) {
         uploadFile(filepath, clientSocket);
         decreaseReaderCount(&file);
     }
