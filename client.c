@@ -366,7 +366,9 @@ int main()
         // Create a folder
         else if(op == 2){
             getFirectoryPath(path1);
-            sendOperation_Path(CREATE_DIRECTORY, path1);
+            if(sendOperation_Path(CREATE_DIRECTORY, path1) != -1){
+                printf("[+] Directory created successfully\n");
+            }
         }
 
         // Reading file from a specified file path

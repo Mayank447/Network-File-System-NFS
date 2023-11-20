@@ -13,36 +13,60 @@ void createDirectory(char* path, char* response)
     char current_dir[256]; // Initialize a buffer for the current directory
     int global_count = 0;
 
-    while (token != NULL)
-    {
-        // Append the next directory to the current directory
-        strcat(current_dir, token);
-        global_count++;
-
-        // Check if the directory already exists
-        struct stat st;
-        if (stat(token, &st) == -1) {
-            if (mkdir(token, 0777) != 0) {
-                strcpy(response,"Error creating directory");
-                return;
-            }
-        }
-
-        if (chdir(token) != 0) {
-            strcpy(response,"Error changing directory");
-            return;
-        }
-        // Add a slash to separate directories in the current directory string
-        strcat(current_dir, "/");
-        token = strtok(NULL, "/");
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        perror("[-] Error creating child process");
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        return;
     }
 
-    while (global_count > 0) {
-        if (chdir("..") != 0) {
-            strcpy(response,"Error changing directory");
-            return;
+    else if (childPid == 0)
+    {
+        // This is the child process
+        while (token != NULL)
+        {
+            // Append the next directory to the current directory
+            strcat(current_dir, token);
+            global_count++;
+
+            // Check if the directory already exists
+            struct stat st;
+            if (stat(token, &st) == -1) {
+                if (mkdir(token, 0777) != 0) {
+                    sprintf(response, "%d", ERROR_DIRECTORY_ALREADY_EXISTS);
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            if (chdir(token) != 0) {
+                sprintf(response, "%d", STORAGE_SERVER_ERROR);
+                exit(EXIT_FAILURE);
+            }
+            // Add a slash to separate directories in the current directory string
+            strcat(current_dir, "/");
+            token = strtok(NULL, "/");
         }
-        global_count--;
+
+        while (global_count > 0) {
+            if (chdir("..") != 0) {
+                sprintf(response, "%d", STORAGE_SERVER_ERROR);
+                exit(EXIT_FAILURE);
+            }
+            global_count--;
+        }
+        exit(EXIT_SUCCESS);
+    }
+
+    else {
+        // This is the parent process
+        int status;
+        waitpid(childPid, &status, 0);
+
+        if (WIFEXITED(status)) 
+            strcpy(response, VALID_STRING);
+        else{
+            sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        }
     }
 }
 

@@ -467,11 +467,14 @@ void functionHandler(char* path, char* response, char* type)
     }
 
     // Adding this path to the array of accessible paths
-    if(strcmp(response, VALID_STRING)==0 && strcmp(type, CREATE_FILE)==0){
+    if(strcmp(response, VALID_STRING)==0 && 
+        (strcmp(type, CREATE_FILE)==0 || (strcmp(type, CREATE_DIRECTORY)==0))){
         addAccessiblePath(server->ss_id, path);
     }
 
-    sprintf(response, VALID_STRING);
+    // Remove this path if the operation is DELETE_FILE or DELETE_DIRECTORY
+    // else if(strcmp(response, VALID_STRING)==0)
+
     close(serverSocket);
 }
 
