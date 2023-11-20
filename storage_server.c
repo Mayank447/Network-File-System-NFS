@@ -18,7 +18,6 @@ int nsPort;     // PORT for communication with Name server (user-specified)
 char nsIP[16];  // Assuming IPv4
 
 
-int clientSocket[MAX_CLIENT_CONNECTIONS];
 char Msg[ERROR_BUFFER_LENGTH];
 char paths_file[50] = ".paths_SS.txt";
 
@@ -103,6 +102,8 @@ void collectAccessiblePaths()
     fclose(file);
 }
 
+
+
 /////////////////// FUNCTIONS FOR INITIALIZING THE CONNECTION WITH THE NAME SERVER /////////////////////
 int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
 {
@@ -173,13 +174,6 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
         return -1;
     }
 
-    // Waiting for connection request from NameServer
-    nsSocketID = accept(nsSocketID, NULL, NULL);
-    if (nsSocketID < 0){
-        perror("[-] Name Server accept failed...");
-        return -1;
-    }
-
     // Receiving the Storage Server ID from NameServer
     char responseBuffer[PATH_BUFFER_SIZE];
     if (recv(nsSocket, responseBuffer, sizeof(responseBuffer), 0) < 0){
@@ -226,15 +220,71 @@ int open_a_connection_port(int Port, int num_listener)
 }
 
 
+// Function to maintain a heart beat/pulse with the Name server
+void* NameServerPulseHandler()
+{
+    // Waiting for connection request from NameServer
+    int nsSocket = accept(nsSocketID, NULL, NULL);
+    if (nsSocket < 0){
+        perror("[-] Name Server accept failed...");
+        return NULL;
+    }
+
+    char buffer[BUFFER_LENGTH];
+    int not_received_count = 0;
+
+    while(1 && not_received_count < NOT_RECEIVED_COUNT)
+    {
+        // Receiving the operation code from Nameserver
+        printf("Here\n");
+        bzero(buffer, BUFFER_LENGTH);
+        if(createRecvThreadPeriodic(nsSocket, buffer)) {
+            not_received_count++;
+            continue;
+        }
+        not_received_count = 0;
+
+        if(strcmp(buffer, "DOWN") != 0) break;
+        if(sendReponse(nsSocket, "UP")) continue;
+        sleep(PERIODIC_HEART_BEAT);
+    }
+    printf("[-] Connection with Nameserver is broken\n");
+    close(nsSocket);
+    return NULL;
+}
 
 
-//////////////// FUNCTIONS TO HANDLE KEY COMMUNICATION WITH NAMESERVER ///////////////////
-void* NameServerThreadHandler()
+
+//////////////// FUNCTIONS TO HANDLE CLIENT BASED COMMUNICATION WITH NAMESERVER ///////////////////
+void NameServerThreadHandler()
 {
     while(1){
+        int nsSocket = accept(nsSocketID, NULL, NULL);
+        if (nsSocket < 0) {
+            perror("[-] Error NameServerThreadHandler(): Nameserver thread accept failed");
+            continue;
+        }
+        printf("[+] Nameserver thread connection request accepted\n");
+        
+        // Create a new thread for each new Nameserver thread
+        pthread_t nsThread;
+        if (pthread_create(&nsThread, NULL, (void*)handleNameServerThread, (void*)&nsSocket) < 0) {
+            perror("[-] Thread creation failed");
+            continue;
+        }
 
+        // Detach the thread
+        if (pthread_detach(nsThread) != 0) {
+            perror("[-] Error detaching Nameserver thread");
+            continue;
+        }
     }
-    return NULL;
+    return;
+}
+
+
+void handleNameServerThread(void* args){
+    int nsSocket = *(int*)args;
 }
 
 
@@ -428,7 +478,8 @@ int main(int argc, char *argv[])
     }
 
     // Create a thread to communicate with the nameserver
-    pthread_t NameServerThread;
+    pthread_t NameServerThread, NameServerPulseThread;;
+    pthread_create(&NameServerPulseThread, NULL, (void*)&NameServerPulseHandler, NULL);
     pthread_create(&NameServerThread, NULL, (void*)&NameServerThreadHandler, NULL);
 
     // Accepting request from clients - This will loop for ever

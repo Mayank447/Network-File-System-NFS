@@ -16,6 +16,7 @@ struct storageServerArg{
 void closeConnections(){ 
     close(clientSocket);
     close(storageServerSocket);
+    cleanStorageServerInfoLinkedList();
 }
 
 /* Signal handler in case Ctrl-C or Ctrl-D is pressed -> so that the socket gets closed */
@@ -49,6 +50,7 @@ struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int 
 
     newServer->redundantSS_1 = NULL;
     newServer->redundantSS_2 = NULL;
+    newServer->running = 1;
 
     pthread_mutex_lock(&storageServerHead_lock);
     newServer->next = storageServerList; //Reversed linked list 
@@ -99,7 +101,7 @@ void* handleStorageServerInitialization()
 }
 
 
-// Individual thread handler for a server
+// Individual thread handler for a server (connection initialization + heart beat)
 void* handleStorageServer(void* argument)
 {
     struct storageServerArg* args = (struct storageServerArg*)argument;
@@ -172,19 +174,30 @@ void* handleStorageServer(void* argument)
     }
     else{
         printf("[-] Error connecting to specificied PORT. This error needs to be handled.\n");
+        return NULL;
     }
-    connectedServerSocketID = server->serverSocket;
 
-    // (TODO): Check is the storage server is still up and running by sending a pulse every second
+    // Check is the storage server is still up and running by sending a pulse every second
+    int not_received_count = 0;
+    server->running = 1;
+    
+    while(1 && not_received_count < NOT_RECEIVED_COUNT){
+        printf("Here\n");
+        bzero(buffer, BUFFER_LENGTH);
 
-    // Handling requests from storage server.  
-    bzero(buffer, BUFFER_LENGTH);
-    while(1){
-        if((bytesReceived = recv(connectedServerSocketID, buffer, sizeof(buffer), 0)) < 0){
-            printf("[-] Storage server %d is down\n", serverID);
-            break;
+        if(sendReponse(serverSocket, "DOWN")) continue;
+        sleep(PERIODIC_HEART_BEAT);
+
+        if(createRecvThreadPeriodic(serverSocket, buffer)) {
+            not_received_count++;
+            continue;
         }
+        not_received_count = 0;
+        if(strcmp(buffer, "UP") != 0) break;
     }
+    server->running = 0;
+    printf("Storage server %d is down\n", serverID);
+    close(serverSocket);
     return NULL;
 }
 
@@ -314,6 +327,25 @@ struct StorageServerInfo* minAccessiblePathSS()
 }
 
 
+// Function to delete the StorageServerInfo linked list
+void cleanStorageServerInfoLinkedList()
+{
+    pthread_mutex_lock(&storageServerHead_lock);
+
+    struct StorageServerInfo* server = storageServerList, *ptr;
+    while(server != NULL){
+        pthread_mutex_destroy(&server->count_accessible_path_lock);
+        ptr = server->next;
+        free(server);
+        server = ptr;
+    }
+
+    pthread_mutex_unlock(&storageServerHead_lock);
+}
+
+
+
+
 /////////////////////////////// FUNCTION TO HANDLE CLIENTS REQUESTS/QUERIES ///////////////////////////////////
 
 // Function to handle a new client request. The function assign a thread to each accepted client. */
@@ -330,12 +362,14 @@ void* handleClients()
         pthread_t clientThread;
         if (pthread_create(&clientThread, NULL, (void*)handleClientRequests, (void*)&newClientSocket) < 0) {
             perror("[-] Error handleClients(): Thread creation failed");
+            close(newClientSocket);
             continue;
         }
 
         // Detach the thread
         if (pthread_detach(clientThread) != 0) {
             perror("[-] Error handleClients(): Error in detaching client thread");
+            close(newClientSocket);
             continue;
         }
     }
@@ -428,6 +462,8 @@ int createFile(char* path)
 
    return 0;
 }
+
+
 
 
 /////////////////////////// FUNCTIONS TO HANDLE STORAGE SERVER QUERYING /////////////////////////

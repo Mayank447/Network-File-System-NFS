@@ -14,6 +14,7 @@ struct StorageServerInfo{
     int count_accessible_paths;
     pthread_mutex_t count_accessible_path_lock;
 
+    int running;
     struct StorageServerInfo* next;
     struct StorageServerInfo* redundantSS_1;
     struct StorageServerInfo* redundantSS_2;
@@ -21,6 +22,8 @@ struct StorageServerInfo{
 
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port);
 struct StorageServerInfo* searchStorageServer(char* file_path);
+void cleanStorageServerInfoLinkedList();
+
 int initConnectionToStorageServer(struct StorageServerInfo* server);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);

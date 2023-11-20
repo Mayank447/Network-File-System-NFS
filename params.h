@@ -20,8 +20,8 @@
 #define NO_CLIENTS_TO_LISTEN_TO 10 // Maximum no. of clients the name server can handle
 #define NO_SERVER_TO_LISTEN_TO 10 // Maximum no. of storage servers can initialize
 
-#define MAX_SERVERS 100
-#define MAX_CLIENTS 100
+#define MAX_SERVERS 100 // Maximum no. of thread which can be managed for server
+#define MAX_CLIENTS 100 // Maximum no. of thread which can be managed for client
 
 #define BUFFER_LENGTH 10000 // Max length of string received from Storage Server for initialization
 #define ERROR_BUFFER_LENGTH 1024
@@ -39,5 +39,8 @@
 
 #define RECEIVE_THREAD_RUNNING_TIME 5
 
+// Ensuring the Storage Server is running by sending a pulse
+#define PERIODIC_HEART_BEAT 2
+#define NOT_RECEIVED_COUNT 3
 
 #endif

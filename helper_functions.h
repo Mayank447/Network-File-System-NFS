@@ -27,6 +27,8 @@ void uploadFile(char* filename, int socket);
 void handleErrorCodes(char* valid, char* message);
 void handleErrorCodes(char* valid, char* message);
 int createRecvThread(int serverSocket, char* buffer);
+int createRecvThreadPeriodic(int serverSocket, char* buffer);
+
 int checkOperationNumber(char* buffer);
 int sendReponse(int socket, char* response);
 int sendConfirmation(int socket);

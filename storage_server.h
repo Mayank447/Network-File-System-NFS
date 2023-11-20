@@ -32,6 +32,7 @@ void getDir(char* directoryname, int clientSocketID);
 
 // Functions for initialization
 int open_a_connection_port(int Port, int num_listener);
+void handleNameServerThread(void* args);
 void* handleClientRequest(void*);
 void requestHandler(int requestNo, int clientSocket);
 void cleanUpFileStruct();
