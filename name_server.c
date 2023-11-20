@@ -396,6 +396,14 @@ void* handleClientRequests(void* socket)
         return NULL;
     }
 
+    // Any path checking if there (TODO)
+
+    // Sending the path confirmation to Client
+    if(sendConfirmation(clientSocket)){
+        printf("[-] Unable to send the confirmation for the path\n");
+        close(clientSocket);
+        return NULL;
+    }
 
     // Creating files
     if(op == atoi(CREATE_FILE))
@@ -484,7 +492,7 @@ void functionHandler(char* path, char* response, char* type)
         return;
     }
 
-    // Need to handle redundancy here
+    // Need to handle redundancy here [Check if the path already exists]
 
     // Connecting to the server
     int serverSocket = connectToServer(server->ip_address, server->naming_server_port);
@@ -535,13 +543,60 @@ void functionHandler(char* path, char* response, char* type)
 // Function to copy files/folders between two paths
 void copyHandler(char* path1, char* path2, char* response, char* op)
 {
-    struct StorageServerInfo *server1, *server2;
+    struct StorageServerInfo *server1 = NULL, *server2 = NULL;
     if(strcmp(op, DELETE_FILE)==0 || strcmp(op, DELETE_DIRECTORY)==0){
         server1 = searchStorageServer(path1);
         server2 = searchStorageServer(path1);
     }
 
+    // If one of the path doesn't exist exit
+    if(!server1 || !server2){
+        sprintf(response, "%d", ERROR_ONE_PATH_DOES_NOT_EXIST);
+        return;
+    }
 
+    // Connecting to the server
+    int serverSocket = connectToServer(server2->ip_address, server2->naming_server_port);
+    if(serverSocket == -1){
+        sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
+        return;
+    }
+
+    // Sending the operation number and receiving the confirmation for it from the storage server
+    if(sendDataAndReceiveConfirmation(serverSocket, op)){
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
+
+    char sendArg[MAX_PATH_LENGTH], temp[10];
+    strcpy(sendArg, server1->ip_address);
+    strcat(sendArg, ":");
+    sprintf(temp, "%d", server1->client_server_port);
+    strcat(sendArg, temp);
+    strcat(sendArg, ":");
+    strcat(sendArg, path1);
+    strcat(sendArg, ":");
+    strcat(sendArg, path2);
+
+    // Sending the argument and receiving the confirmation for it from the storage server
+    if(sendDataAndReceiveConfirmation(serverSocket, sendArg)){
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
+
+    // Receiving the status of operation
+    if(createRecvThread(serverSocket, response)) {
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
+    }
+
+    // Adding this path to the array of accessible paths
+    if(strcmp(response, VALID_STRING)==0){
+        addAccessiblePath(server2->ss_id, path1);
+    }
 }
 
 

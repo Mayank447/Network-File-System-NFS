@@ -84,10 +84,9 @@ void* receiveInfo(void* thread_args)
     
     // Receiving the confirmation for storage server's side
     if(recv(args->serverSocket, args->buffer, sizeof(args->buffer), 0) < 0){
-        pthread_testcancel();
         perror("[-] Error createFile(): Unable to receive info");
         args->threadResult = -1;
-        args->threadStatus = THREAD_FINISHED;
+        pthread_testcancel();
         return NULL;
     }
     pthread_testcancel();
@@ -165,7 +164,6 @@ int sendData(int socket, char* response){
 // Thread to send confirmation of valid
 int sendConfirmation(int socket){
     if(send(socket, VALID_STRING, strlen(VALID_STRING), 0) < 0){
-        perror("[-] sendConfirmation(): Error sending confirmation");
         return -1;
     }
     return 0;
@@ -179,7 +177,9 @@ int receiveConfirmation(int serverSocket)
         return -1;
     
     if(strcmp(buffer, VALID_STRING) != 0) {
-        printf("[-] %s\n", buffer);
+        char error[BUFFER_LENGTH];
+        handleErrorCodes(buffer, error);
+        printf("[-] %s\n", error);
         return -1;
     }
     return 0;
@@ -233,8 +233,10 @@ int receivePath(int socket, char* buffer)
 
 
     // Sending confirmation the path
-    if(sendConfirmation(socket) != 0) 
+    if(sendConfirmation(socket) != 0){
+        printf("[-] Error sending the confirmation for the path\n");
         return -1;
+    }
 
     return 0;
 }
@@ -370,11 +372,9 @@ int connectToServer(const char* IP_address, const int PORT)
 
 int sendDataAndReceiveConfirmation(int socket, char* data){
     if(sendData(socket, data)){
-        close(socket);
         return -1;
     }
     if(receiveConfirmation(socket)) {
-        close(socket);
         return -1;
     }
     return 0;
