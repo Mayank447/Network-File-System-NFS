@@ -250,6 +250,7 @@ void NameServerThreadHandler()
     return;
 }
 
+
 // Function for communication between 
 void* handleNameServerThread(void* args)
 {
@@ -263,7 +264,35 @@ void* handleNameServerThread(void* args)
     }
 
     // Create File
-    if(op == 1){
+    if(op == atoi(CREATE_FILE)){
+        char path[BUFFER_LENGTH], response[100];
+        if(receivePath(nsSocket, path)){
+            close(nsSocket);
+            return NULL;
+        }
+
+        createFile(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending createFile() response to Name server\n");
+        }
+    }
+
+    // Create Folder
+    else if(op == atoi(CREATE_DIRECTORY)){
+        char path[BUFFER_LENGTH], response[100];
+        if(receivePath(nsSocket, path)){
+            close(nsSocket);
+            return NULL;
+        }
+
+        createDirectory(path, response);
+        if(sendData(nsSocket, response)){
+            printf("[-] Error sending createDirectory() response to Name server\n");
+        }
+    }
+
+    // Create Folder
+    else if(op == atoi(DELETE_FILE)){
         char path[BUFFER_LENGTH], response[100];
         if(receivePath(nsSocket, path)){
             close(nsSocket);
@@ -271,9 +300,9 @@ void* handleNameServerThread(void* args)
         }
         printf("Path: %s\n", path);
 
-        createFile(path, response);
+        createDirectory(path, response);
         if(sendData(nsSocket, response)){
-            printf("[-] Error sending createFile() response to Name server\n");
+            printf("[-] Error sending createDirectory() response to Name server\n");
         }
     }
 

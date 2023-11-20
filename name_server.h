@@ -28,6 +28,6 @@ int initConnectionToStorageServer(struct StorageServerInfo* server);
 void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, int *cs_port);
 void* handleStorageServer(void* argument);
 void* handleClientRequests(void*);
-void createFileNS(char* path, char* response);
+void functionHandler(char* path, char* response, char* type);
 
 #endif

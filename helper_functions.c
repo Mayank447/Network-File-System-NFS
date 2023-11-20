@@ -178,7 +178,6 @@ int receiveConfirmation(int serverSocket)
     if(createRecvThread(serverSocket, buffer)) 
         return -1;
     
-    printf("Received: %s\n", buffer);
     if(strcmp(buffer, VALID_STRING) != 0) {
         printf("[-] %s\n", buffer);
         return -1;
@@ -366,4 +365,17 @@ int connectToServer(const char* IP_address, const int PORT)
         return -1;
     }
     return serverSocket;
+}
+
+
+int sendDataAndReceiveConfirmation(int socket, char* data){
+    if(sendData(socket, data)){
+        close(socket);
+        return -1;
+    }
+    if(receiveConfirmation(socket)) {
+        close(socket);
+        return -1;
+    }
+    return 0;
 }

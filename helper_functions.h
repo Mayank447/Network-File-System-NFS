@@ -38,5 +38,6 @@ int receiveConfirmation(int serverSocket);
 int sendPath(int socket, char* buffer);
 int open_a_connection_port(int Port, int num_listener);
 int connectToServer(const char* IP_address, const int PORT);
+int sendDataAndReceiveConfirmation(int socket, char* data);
 
 #endif

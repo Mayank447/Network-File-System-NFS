@@ -2,11 +2,51 @@
 
 char Msg[BUFFER_LENGTH];
 
-/*
+
 // Function to create a directory
-void createDirectory(char* path, int clientSocket);
+void createDirectory(char* path, char* response)
+{
+    char path_copy[300];
+    strcpy(path_copy,path); // Create a copy of the path
 
+    char *token = strtok(path_copy, "/"); // Tokenize the path
+    char current_dir[256]; // Initialize a buffer for the current directory
+    int global_count = 0;
 
+    while (token != NULL)
+    {
+        // Append the next directory to the current directory
+        strcat(current_dir, token);
+        global_count++;
+
+        // Check if the directory already exists
+        struct stat st;
+        if (stat(token, &st) == -1) {
+            if (mkdir(token, 0777) != 0) {
+                strcpy(response,"Error creating directory");
+                return;
+            }
+        }
+
+        if (chdir(token) != 0) {
+            strcpy(response,"Error changing directory");
+            return;
+        }
+        // Add a slash to separate directories in the current directory string
+        strcat(current_dir, "/");
+        token = strtok(NULL, "/");
+    }
+
+    while (global_count > 0) {
+        if (chdir("..") != 0) {
+            strcpy(response,"Error changing directory");
+            return;
+        }
+        global_count--;
+    }
+}
+
+/*
 // Function to copy directories between two storage servers
 void copyDirectory(const char *sourceDir, const char *destinationDir) {
     struct dirent *entry;

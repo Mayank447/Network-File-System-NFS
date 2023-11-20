@@ -194,20 +194,29 @@ int connectAndCheckForFileExistence(char* path, char* operation_num)
 
 
 ////////////////////////////// FILE OPERATION /////////////////////////////
-void createFile(char* path)
+int sendOperation_Path(char* op, char* path)
 {
     int nsSocket;
-    if((nsSocket = sendCommandToNameServer(CREATE_FILE, path)) < 0) 
-        return;
+    if((nsSocket = sendCommandToNameServer(op, path)) < 0) {
+        printf("[-] Error sending command to the nameserver\n");
+        close(nsSocket);
+        return -1;
+    }
 
     // Sending the file path to the nameserver
-    if(sendData(nsSocket, path) < 0) return;
+    if(sendData(nsSocket, path) < 0) {
+        printf("[-] Error sending filepath to the nameserver\n");
+        close(nsSocket);
+        return -1;
+    }
     
     // Receiving the confirmation
-    if(receiveConfirmation(nsSocket) == 0){
-        printf("[+] File created\n");
+    if(receiveConfirmation(nsSocket)) {
+        close(nsSocket);
+        return -1;
     }
     close(nsSocket);
+    return 0;
 }
 
 
@@ -349,13 +358,15 @@ int main()
         // Creating a file specified a path
         if(op == 1){
             getFilePath(path1);
-            createFile(path1);
+            if(sendOperation_Path(CREATE_FILE, path1) != -1){
+                printf("[+] File created successfully\n");
+            }
         }
 
         // Create a folder
         else if(op == 2){
             getFirectoryPath(path1);
-            createDirectory(path1);
+            sendOperation_Path(CREATE_DIRECTORY, path1);
         }
 
         // Reading file from a specified file path

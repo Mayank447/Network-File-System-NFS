@@ -380,7 +380,7 @@ void* handleClients()
 void* handleClientRequests(void* socket)
 {
     int clientSocket = *(int*)socket;
-    char buffer[BUFFER_LENGTH];
+    char path[BUFFER_LENGTH];
     
     // Receiving the operation number
     int op = receiveOperationNumber(clientSocket);
@@ -389,25 +389,39 @@ void* handleClientRequests(void* socket)
         return NULL;
     }
 
+    // Receiving the path
+    if(createRecvThread(clientSocket, path)){
+        close(clientSocket);
+        return NULL;
+    }
+    printf("Path: %s\n", path);
+
+
     // Creating files
     if(op == atoi(CREATE_FILE))
-    {
-        createRecvThread(clientSocket, buffer);
-        printf("Path: %s\n", buffer);
-        
+    {        
         // Finding the minimum access path's storage server 
         char response[BUFFER_LENGTH];
-        createFileNS(buffer, response);
-        printf("Response: %s\n", response);
-        
+        functionHandler(path, response, CREATE_FILE);
+
         // Sending the response to client
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the createFile response back to client.\n");
         }
-        else{
-            printf("sent\n");
-        }
+    }
 
+    // Creating files
+    if(op == atoi(CREATE_DIRECTORY))
+    {        
+        // Finding the minimum access path's storage server 
+        char response[BUFFER_LENGTH];
+        functionHandler(path, response, CREATE_DIRECTORY);
+        printf("Response: %s\n", response);
+
+        // Sending the response to client
+        if(sendData(clientSocket, response)) {
+            printf("[-] Unable to send the createFile response back to client.\n");
+        }
     }
 
     close(clientSocket);
@@ -416,7 +430,7 @@ void* handleClientRequests(void* socket)
 
 
 // Function to create File inside a storage server
-void createFileNS(char* path, char* response)
+void functionHandler(char* path, char* response, char* type)
 {
     struct StorageServerInfo* server = minAccessiblePathSS();
     if(server == NULL) {
@@ -430,31 +444,16 @@ void createFileNS(char* path, char* response)
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
         return;
     }
-    printf("Connected\n");
-    
 
     // Sending the operation number and receiving the confirmation for it from the storage server
-    if(sendData(serverSocket, CREATE_FILE)){
-        printf("[-] Error createFile(): Unable to send the create file command to the Storage Server");
+    if(sendDataAndReceiveConfirmation(serverSocket, type)){
         sprintf(response, "%d", STORAGE_SERVER_ERROR);
         close(serverSocket);
         return;
     }
-    if(receiveConfirmation(serverSocket)) {
-        sprintf(response, "%d", STORAGE_SERVER_ERROR);
-        close(serverSocket);
-        return;
-    }
-
 
     // Sending the file path and receiving the confirmation for it from the storage server
-    if(sendData(serverSocket, path)){
-        sprintf(response, "%d", STORAGE_SERVER_ERROR);
-        printf("[-] Error createFile(): Unable to send the file path to the Storage Server");
-        close(serverSocket);
-        return;
-    }
-    if(receiveConfirmation(serverSocket)) {
+    if(sendDataAndReceiveConfirmation(serverSocket, path)){
         sprintf(response, "%d", STORAGE_SERVER_ERROR);
         close(serverSocket);
         return;
@@ -463,9 +462,20 @@ void createFileNS(char* path, char* response)
     // Receiving the response (status of operation)
     if(createRecvThread(serverSocket, response)) {
         sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        close(serverSocket);
+        return;
     }
+
+    // Adding this path to the array of accessible paths
+    if(strcmp(response, VALID_STRING)==0 && strcmp(type, CREATE_FILE)==0){
+        addAccessiblePath(server->ss_id, path);
+    }
+
+    sprintf(response, VALID_STRING);
     close(serverSocket);
 }
+
+
 
 
 
