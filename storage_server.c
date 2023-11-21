@@ -364,29 +364,28 @@ void* handleClientRequest(void* argument)
     int request_no = receiveOperationNumber(clientSocket);
     if(request_no == -1) return NULL;
     
-    File file;
     char filepath[MAX_PATH_LENGTH];
 
 
     //READ FILE
     if(request_no == 3) {
-        if(receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0){
+        if(receive_ValidateFilePath(clientSocket, filepath, READ_FILE, 1) == 0){
             UploadFile(clientSocket, filepath);
-            decreaseReaderCount(&file);
+            decreaseReaderCount(filepath);
         }
     }
 
     // WRITE FILE
     else if(request_no == 4){
-        if(receive_ValidateFilePath(clientSocket, filepath, atoi(WRITE_FILE), &file, 1) == 0){
+        if(receive_ValidateFilePath(clientSocket, filepath, WRITE_FILE, 1) == 0){
             DownloadFile(clientSocket, filepath);
-            openWriteLock(&file);
+            openWriteLock(filepath);
         }
     }
 
     // GET PERMISSIONS
     else if(request_no == 5){
-        if(receive_ValidateFilePath(clientSocket, filepath, atoi(GET_FILE_PERMISSIONS), NULL, 1) == 0){
+        if(receive_ValidateFilePath(clientSocket, filepath, GET_FILE_PERMISSIONS, 1) == 0){
             getFileMetaData(filepath, clientSocket);
         }
     }
@@ -398,7 +397,7 @@ void* handleClientRequest(void* argument)
 
 
 // Function to receive the "file" path from the client
-int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int check)
+int receive_ValidateFilePath(int clientSocket, char* filepath, char* operation_no, int check)
 {
     // Receiving the file path
     if(nonBlockingRecv(clientSocket, filepath)){
@@ -409,7 +408,7 @@ int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no,
     // Validating the filepath based on return value (ERROR_CODE)
     int valid = 0;
     if(check) {
-        valid = validateFilePath(filepath, operation_no, file);
+        valid = validateFilePath(filepath, operation_no);
     }
 
     char response[100];

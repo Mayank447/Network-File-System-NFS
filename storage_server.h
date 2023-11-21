@@ -25,7 +25,7 @@ char ErrorMsg[1024];
 int open_a_connection_port(int Port, int num_listener);
 void* handleNameServerThread(void* args);
 void* handleClientRequest(void*);
-int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int check);
+int receive_ValidateFilePath(int clientSocket, char* filepath, char* operation_no, int check);
 
 
 #endif

@@ -24,74 +24,81 @@ int checkFilePathExists(char* path){
 
 
 // Check if the filepath is valid and stored in file struct
-int validateFilePath(char* filepath, int operation_no, File* file)
+int validateFilePath(char* filepath, char* operation_no)
 {
     /* Function also locks the file based on the operation number */
     File* ptr = fileHead;
-    while(ptr != NULL) 
-    {
-        printf("%s\n", ptr->filepath);
-        // If the file found and the operation is to read
-        if(strcmp(filepath, ptr->filepath)==0 && operation_no == 3)
-        {
-            file = ptr;
-            pthread_mutex_lock(&ptr->read_write_lock);
-            
-            //Someone is already writing to the file
-            if(ptr->read_write == 1) {
-                pthread_mutex_unlock(&ptr->read_write_lock);
-                return ERROR_A_CLIENT_ALREADY_WRITING_TO_FILE; 
-            }
-            else ptr->read_write = 0;
-            
-            // Incrementing the reader count
-            pthread_mutex_lock(&ptr->get_reader_count_lock);
-            ptr->reader_count++;
-            pthread_mutex_unlock(&ptr->get_reader_count_lock);
-            
-            pthread_mutex_unlock(&ptr->read_write_lock);
-            return 0;
-        }
-
-        // File path matches and operation is to write
-        else if(strcmp(filepath, ptr->filepath)==0 && operation_no == 4)
-        {
-            file = ptr;
-            pthread_mutex_lock(&ptr->read_write_lock);
-            
-            // Someone is already reading the file
-            if(ptr->read_write == 0){
-                pthread_mutex_unlock(&ptr->read_write_lock);
-                return ERROR_A_CLIENT_ALREADY_READING_THE_FILE;
-            }
-            else ptr->read_write = 1;
-
-            pthread_mutex_unlock(&ptr->read_write_lock);
-            return 0;
-        }
-
-        else if(strcmp(filepath, ptr->filepath) == 0){
-            return 0;
-        }
-
+    while(ptr != NULL) {
+        if(strcmp(filepath, ptr->filepath)==0) break;
         ptr=ptr->next;
     }
-    return ERROR_PATH_DOES_NOT_EXIST;
+
+    if(ptr == NULL) return ERROR_PATH_DOES_NOT_EXIST;
+    
+    if(strcmp(operation_no, READ_FILE)==0){
+        pthread_mutex_lock(&ptr->read_write_lock);
+            
+        //Someone is already writing to the file
+        if(ptr->read_write == 1) {
+            pthread_mutex_unlock(&ptr->read_write_lock);
+            return ERROR_A_CLIENT_ALREADY_WRITING_TO_FILE; 
+        }
+        else ptr->read_write = 0;
+            
+        // Incrementing the reader count
+        pthread_mutex_lock(&ptr->get_reader_count_lock);
+        ptr->reader_count++;
+        printf("Count: %d\n", ptr->reader_count);
+        pthread_mutex_unlock(&ptr->get_reader_count_lock);
+
+        pthread_mutex_unlock(&ptr->read_write_lock);
+        return VALID;
+    }
+
+    // File path matches and operation is to write
+    else if(strcmp(operation_no, WRITE_FILE) == 0)
+    {
+        pthread_mutex_lock(&ptr->read_write_lock);
+        
+        // Someone is already reading the file
+        if(ptr->read_write == 0){
+            pthread_mutex_unlock(&ptr->read_write_lock);
+            return ERROR_A_CLIENT_ALREADY_READING_THE_FILE;
+        }
+        else ptr->read_write = 1;
+
+        pthread_mutex_unlock(&ptr->read_write_lock);
+        return VALID;
+    }
+
+    else {
+        return VALID;
+    }
 }
 
 
 // Decrease the reader count of a particular file
-void decreaseReaderCount(File* file)
+void decreaseReaderCount(char* path)
 {
-    pthread_mutex_lock(&file->read_write_lock);
-    pthread_mutex_lock(&file->get_reader_count_lock);
-    
-    printf("Reader_count: %d", file->reader_count);
-    if(file->read_write != 1 && --file->reader_count == 0){
-        file->read_write = -1;
+    File* file = fileHead;
+    while(file != NULL) {
+        if(strcmp(path, file->filepath)==0)
+        {
+            pthread_mutex_lock(&file->read_write_lock);
+            pthread_mutex_lock(&file->get_reader_count_lock);
+            
+            printf("Filename: %s", file->filepath);
+            printf("Reader_count: %d", file->reader_count);
+            if(file->read_write != 1 && --file->reader_count == 0){
+                file->read_write = -1;
+            }
+            pthread_mutex_unlock(&file->get_reader_count_lock);
+            pthread_mutex_unlock(&file->read_write_lock);
+            return;
+        }
+        file = file->next;
     }
-    pthread_mutex_unlock(&file->get_reader_count_lock);
-    pthread_mutex_unlock(&file->read_write_lock);
+    return;
 }
 
 
@@ -163,10 +170,17 @@ void cleanUpFileStruct(){
 
 
 // Opening the file lock from writing
-void openWriteLock(File* file){
-    pthread_mutex_lock(&file->read_write_lock);
-    file->read_write = -1;
-    pthread_mutex_unlock(&file->read_write_lock);
+void openWriteLock(char* path){
+    File* file = fileHead;
+    while(file != NULL) {
+        if(strcmp(path, file->filepath)==0){
+            pthread_mutex_lock(&file->read_write_lock);
+            file->read_write = -1;
+            pthread_mutex_unlock(&file->read_write_lock);
+            break;
+        }
+        file = file->next;
+    }
 }
 
 

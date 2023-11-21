@@ -7,11 +7,11 @@
 
 // FILE STRUCT FUNCTIONS
 int checkFilePathExists(char* path);
-int validateFilePath(char* filepath, int operation_no, File* file);
+int validateFilePath(char* filepath, char* operation_no);
 int addFile(char* path, int check);
 int removeFile(char* path);
-void decreaseReaderCount(File* file);
-void openWriteLock(File* file);
+void decreaseReaderCount(char* path);
+void openWriteLock(char* path);
 void cleanUpFileStruct();
 
 // ACTUAL FILE FUNCTIONS
