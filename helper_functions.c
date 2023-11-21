@@ -419,3 +419,19 @@ struct StorageServerInfo* searchPathInHashTable(struct HashTable* hashTable, cha
     }
     return NULL;  // Path not found
 }
+
+
+void removeLastSlash(char *str) {
+    int length = strlen(str);
+
+    // Check if the string is not empty and contains at least one slash
+    if (length > 0) {
+        for (int i = length - 1; i >= 0; --i) {
+            if (str[i] == '/') {
+                // Found the last slash, remove it and everything after it
+                str[i] = '\0';
+                break;
+            }
+        }
+    }
+}
