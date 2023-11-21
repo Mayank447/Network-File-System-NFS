@@ -90,7 +90,7 @@ void* receiveInfo(void* thread_args)
     struct ReceiveThreadArgs* args = (struct ReceiveThreadArgs*)thread_args;
     
     // Receiving the confirmation for storage server's side
-    if(recv(args->serverSocket, args->buffer, sizeof(args->buffer), 0) < 0){
+    if(recv(args->serverSocket, args->buffer, BUFFER_LENGTH, 0) < 0){
         perror("[-] Error createFile(): Unable to receive info");
         args->threadResult = -1;
         pthread_testcancel();

@@ -23,7 +23,7 @@
 #define MAX_SERVERS 100 // Maximum no. of thread which can be managed for server
 #define MAX_CLIENTS 100 // Maximum no. of thread which can be managed for client
 
-#define BUFFER_LENGTH 10000 // Max length of string received from Storage Server for initialization
+#define BUFFER_LENGTH 1000 // Max length of string received from Storage Server for initialization
 #define ERROR_BUFFER_LENGTH 1024
 #define MAX_PATH_LENGTH 1000
 #define MAX_FILE_NAME_LENGTH 256

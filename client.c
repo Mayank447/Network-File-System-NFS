@@ -130,14 +130,11 @@ int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
     printf("Received IP_PORT: %s\n", data);
-    if(atoi(data) > 0) {
-        printError(data);
-        return -1;
-    }
 
     // IP address parsing format "IP:PORT"
     if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2){
         printf("[-] Error parsing storage server info: %s\n", data);
+        printError(data);
         return -1;
     }
     return 0;
@@ -262,6 +259,8 @@ int getPermissions(char* path)
     }
 
     int serverSocket = connectToServer(IP_address, PORT);
+    if(serverSocket < 0) return -1;
+    
     if(sendDataAndReceiveConfirmation(serverSocket, GET_FILE_PERMISSIONS)){
         printf("[-] Error sending or receiving confirmation for Operation Number\n");
         close(serverSocket);

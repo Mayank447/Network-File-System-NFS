@@ -16,19 +16,15 @@ char ErrorMsg[1024];
 
 
 // Functions for files
-void getFileMetaData(char* filename, int clientSocketID);
 
 
 // Functions for directory
-void uploadDir_client_to_server(char* directoryname, int clientSocketID);
-void sendDir_server_to_client(char* directoryname, int clientSocketID);
 
 
 // Functions for initialization
 int open_a_connection_port(int Port, int num_listener);
 void* handleNameServerThread(void* args);
 void* handleClientRequest(void*);
-void requestHandler(int requestNo, int clientSocket);
 int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int check);
 
 

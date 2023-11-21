@@ -367,8 +367,6 @@ void cleanStorageServerInfoLinkedList()
 void returnSS_IP_PORT(char* path, char* response)
 {
     struct StorageServerInfo* server = searchStorageServer(path);
-    printf("%s\n", server->ip_address);
-    printf("%d\n", server->client_server_port);
     strcat(response, server->ip_address);
     strcat(response, ":");
     sprintf(Msg, "%d", server->client_server_port);
@@ -467,9 +465,10 @@ void* handleClientRequests(void* socket)
     else if(op == atoi(READ_FILE) || op == atoi(WRITE_FILE) || op == atoi(GET_FILE_PERMISSIONS))
     {        
         printf("Inside\n");
+        char response[BUFFER_LENGTH];
         returnSS_IP_PORT(path, response);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the Storage Server ID, PORT back to client.\n");
+            printf("[-] Unable to send the copyHandler response back to client.\n");
         }
     }
 

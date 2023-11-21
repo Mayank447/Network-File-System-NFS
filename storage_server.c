@@ -323,6 +323,7 @@ void* handleNameServerThread(void* args)
 
 
 
+
 ////////////////////// FUNCTIONS TO HANDLE COMMUNICATION WITH CLIENT /////////////////////////
 void handleClients()
 {
@@ -368,9 +369,11 @@ void* handleClientRequest(void* argument)
 
 
     //READ FILE
-    if(request_no == 3 && receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0) {
-        uploadFile(filepath, clientSocket);
-        decreaseReaderCount(&file);
+    if(request_no == 3 ) {
+        if(receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0){
+            uploadFile(filepath, clientSocket);
+            decreaseReaderCount(&file);
+        }
     }
 
     // WRITE FILE
@@ -382,13 +385,16 @@ void* handleClientRequest(void* argument)
     }
 
     // GET PERMISSIONS
-    else if(request_no == 5 && receive_ValidateFilePath(clientSocket, filepath, atoi(GET_FILE_PERMISSIONS), NULL, 1) == 0){
-        getFileMetaData(filepath, clientSocket);
+    else if(request_no == 5){
+        if(receive_ValidateFilePath(clientSocket, filepath, atoi(GET_FILE_PERMISSIONS), NULL, 1) == 0){
+            getFileMetaData(filepath, clientSocket);
+        }
     }
 
     close(clientSocket);
     return NULL;
 }
+
 
 
 // Function to receive the "file" path from the client
@@ -402,11 +408,13 @@ int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no,
     } 
 
     // Validating the filepath based on return value (ERROR_CODE)
-    char response[100];
     int valid = 0;
+    if(check) {
+        valid = validateFilePath(filepath, operation_no, file);
+    }
 
-    if(check) valid = validateFilePath(filepath, operation_no, file);
-    else sprintf(response, "%d", valid);
+    char response[100];
+    sprintf(response, "%d", valid);
 
     //Sending back the response
     if(sendData(clientSocket, response)){
@@ -415,8 +423,6 @@ int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no,
     }
     return valid;
 }
-
-
 
 
 
