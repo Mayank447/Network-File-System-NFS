@@ -354,3 +354,84 @@ int sendDataAndReceiveConfirmation(int socket, char* data){
     }
     return 0;
 }
+
+
+//////////////////// SEARCH OPTIMIZATION //////////////////////////
+void insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info) {
+    int hashValue = 0;
+    for (int i = 0; path[i] != '\0'; ++i) {
+        hashValue = (hashValue * 31 + path[i]) % HASH_TABLE_SIZE;
+    }
+
+    struct HashNode* newNode = (struct HashNode*)malloc(sizeof(struct HashNode));
+    if (newNode == NULL) {
+        // Handle memory allocation failure
+        exit(EXIT_FAILURE);
+    }
+
+    strncpy(newNode->path, path, MAX_LENGTH_OF_ACCESSIBLE_PATH);
+    newNode->path[MAX_LENGTH_OF_ACCESSIBLE_PATH - 1] = '\0';
+    newNode->ss_info = ss_info;
+    newNode->next = hashTable->table[hashValue];
+    hashTable->table[hashValue] = newNode;
+}
+void deletePathFromHashTable(struct HashTable* hashTable, char* path) {
+    int hashValue = 0;
+    for (int i = 0; path[i] != '\0'; ++i) {
+        hashValue = (hashValue * 31 + path[i]) % HASH_TABLE_SIZE;
+    }
+    struct HashNode* currentNode = hashTable->table[hashValue];
+    struct HashNode* prevNode = NULL;
+    while (currentNode != NULL) {
+        if (strcmp(currentNode->path, path) == 0) {
+            // Path found, delete the entry
+            if (prevNode == NULL) {
+                // If the node to be deleted is the first in the list
+                hashTable->table[hashValue] = currentNode->next;
+            } else {
+                prevNode->next = currentNode->next;
+            }
+
+            // Free the memory allocated for the node
+            free(currentNode);
+            return;
+        }
+        prevNode = currentNode;
+        currentNode = currentNode->next;
+    }
+
+    // Path not found
+    printf("Path not found in the hash table\n");
+}
+
+struct StorageServerInfo* searchPathInHashTable(struct HashTable* hashTable, char* path) {
+    int hashValue = 0;
+    for (int i = 0; path[i] != '\0'; ++i) {
+        hashValue = (hashValue * 31 + path[i]) % HASH_TABLE_SIZE;
+    }
+
+    struct HashNode* currentNode = hashTable->table[hashValue];
+    while (currentNode != NULL) {
+        if (strcmp(currentNode->path, path) == 0) {
+            return currentNode->ss_info;
+        }
+        currentNode = currentNode->next;
+    }
+    return NULL;  // Path not found
+}
+
+
+void removeLastSlash(char *str) {
+    int length = strlen(str);
+
+    // Check if the string is not empty and contains at least one slash
+    if (length > 0) {
+        for (int i = length - 1; i >= 0; --i) {
+            if (str[i] == '/') {
+                // Found the last slash, remove it and everything after it
+                str[i] = '\0';
+                break;
+            }
+        }
+    }
+}

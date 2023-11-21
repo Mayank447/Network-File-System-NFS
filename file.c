@@ -323,6 +323,7 @@ void DownloadFile(int serverSocket, char* filename)
             fclose(file);
             return;
         }
+        printf("%s\n", buffer);
     }
     fclose(file);
     printf("File %s downloaded successfully.\n", filename);
@@ -372,12 +373,25 @@ int UploadFile(int clientSocket, char* filename)
 
 void copyFile(char* ss_path, char* response)
 {
-    char IP_address[20], path[MAX_PATH_LENGTH];
+    char IP_address[20], path[MAX_PATH_LENGTH], path2[MAX_PATH_LENGTH];
     int PORT = 0;
-    if(sscanf(ss_path, "%[^:]:%d:%s", IP_address, &PORT, path) != 3){
+    if(sscanf(ss_path, "%[^:]:%d:%[^:]:%[^:]", IP_address, &PORT, path, path2) != 4){
         printf("[-] Error parsing the SS_Path string\n");
         return;
     }
+    printf("Inside\n");
+
+    char filename[1000];
+    extractFileName(path, filename);
+
+    if(path2[strlen(path2)-1]=='/'){
+        strcat(path2, filename);
+    }
+    else{
+        strcat(path2, "/");
+        strcat(path2, filename);
+    }
+    printf("Path2: %s\n", path2);
 
     int copySocket = connectToServer(IP_address, PORT);
     printf("[+] Connected to copy server\n");
@@ -387,7 +401,7 @@ void copyFile(char* ss_path, char* response)
         return;
     }
 
-    if(sendDataAndReceiveConfirmation(copySocket, path)){
+    if(sendDataAndReceiveConfirmation(copySocket, path2)){
         printf("[-] Error sending Copying Operation number");
         return;
     }

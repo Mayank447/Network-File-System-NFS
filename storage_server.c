@@ -85,7 +85,7 @@ void collectAccessiblePaths()
 
         // Path corresponds to a File
         else if(type == 0) {
-            fprintf(file, "%s", path);
+            fprintf(file, "%s\n", path);
             addFile(path, 1); // Store the path in a File struct
         }
         
