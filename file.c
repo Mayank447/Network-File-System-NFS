@@ -288,19 +288,22 @@ void DownloadFile(int serverSocket, char* filename)
     // Receiving the FILE DATA
     while(1){
         int status = nonBlockingRecv(serverSocket, buffer);
-        char* end_index;
-
-        if((end_index = strstr(buffer, "COMPLETE")) != NULL) {
-            bzero(buffer2, BUFFER_LENGTH);
-            strncpy(buffer2, buffer, (int)(end_index - buffer));
-            fprintf(file, "%s", buffer2);
-            break;
-        }
-
-        else if(status){
+        if(status){
             printf("Error downloadFile(): Unable to received file content");
             fclose(file);
             return;
+        }
+
+        if(sendConfirmation(serverSocket)){
+            printf("Error downloadFile(): Error sending confirmation");
+            fclose(file);
+            return;
+        }
+        
+        char* end_index;
+        if((end_index = strstr(buffer, "COMPLETE")) != NULL) {
+            fprintf(file, "%s", buffer2);
+            break;
         }
 
         else if(fprintf(file, "%s", buffer) < 0){
@@ -335,7 +338,7 @@ void UploadFile(int clientSocket, char* filename)
     else {
         char buffer[BUFFER_LENGTH] = {'\0'};
         while (fgets(buffer, BUFFER_LENGTH, file) != NULL){
-            if (sendData(clientSocket, buffer)){
+            if (sendDataAndReceiveConfirmation(clientSocket, buffer)){
                 perror("[-] Error sending file");
                 fclose(file);
                 return;
