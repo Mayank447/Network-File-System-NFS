@@ -32,8 +32,8 @@ void logger(char* text, char* IP, int PORT)
 {
     FILE *logFile = fopen(NameServerLog, "a"); // Open the file in append mode
     if (logFile != NULL) {
-        //write the log in IP:127.0.0.1;PORT:8089;STATUS:text format
-        fprintf(logFile, "IP:%s;PORT:%d;STATUS:%s\n", IP, PORT, text);
+        //write the log in IP:127.0.0.1, PORT:8089, LOG: text format
+        fprintf(logFile, "IP:%s, PORT:%d, LOG: %s\n", IP, PORT, text);
         fclose(logFile);
     } else {
         // Handle file opening error
@@ -202,7 +202,7 @@ void* handleStorageServer(void* argument)
 
     while(1 && not_received_count < NOT_RECEIVED_COUNT){
         bzero(buffer, BUFFER_LENGTH);
-
+        printf("Here\n");
         if(sendData(serverSocket, "DOWN")) continue;
         sleep(PERIODIC_HEART_BEAT);
 
@@ -363,6 +363,18 @@ void cleanStorageServerInfoLinkedList()
     pthread_mutex_unlock(&storageServerHead_lock);
 }
 
+// Function to return the Storage server IP address and PORT given the filepath/directory
+void returnSS_IP_PORT(char* path, char* response)
+{
+    struct StorageServerInfo* server = searchStorageServer(path);
+    printf("%s\n", server->ip_address);
+    printf("%d\n", server->client_server_port);
+    strcat(response, server->ip_address);
+    strcat(response, ":");
+    sprintf(Msg, "%d", server->client_server_port);
+    strcat(response, Msg);
+}
+
 
 
 
@@ -417,7 +429,6 @@ void* handleClientRequests(void* socket)
         close(clientSocket);
         return NULL;
     }
-    
 
     // Receiving the path
     if(nonBlockingRecv(clientSocket, path)){
@@ -429,72 +440,57 @@ void* handleClientRequests(void* socket)
 
     // Sending the path confirmation to Client
     if(sendConfirmation(clientSocket)){
-        printf("[-] Unable to send the confirmation for the path\n");
+        printf("[-] Unable to send the confirmation for the path.\n");
         close(clientSocket);
         return NULL;
     }
 
-    // Creating files
-    if(op == atoi(CREATE_FILE))
+    if(receiveConfirmation(clientSocket)){
+        printf("[-] Unable to receive the confirmation for the sent confirmation.\n");
+        close(clientSocket);
+        return NULL;
+    }
+
+    sprintf(Msg, "%d", op);
+
+    // Create file, Create Folder, Delete File, Delete Folder
+    if(op == atoi(CREATE_FILE) || op == atoi(CREATE_DIRECTORY) ||
+        op == atoi(DELETE_FILE) || op == atoi(DELETE_DIRECTORY))
     {        
-        createDeletionHandler(path, response, CREATE_FILE);
+        createDeletionHandler(path, response, Msg);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createFile response back to client.\n");
+            printf("[-] Unable to send the creationDeletionHandler response back to client.\n");
         }
     }
 
-    // Creating directory
-    else if(op == atoi(CREATE_DIRECTORY))
+    // Read file, write to file, get File Permission
+    else if(op == atoi(READ_FILE) || op == atoi(WRITE_FILE) || op == atoi(GET_FILE_PERMISSIONS))
     {        
-        createDeletionHandler(path, response, CREATE_DIRECTORY);
+        printf("Inside\n");
+        returnSS_IP_PORT(path, response);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createDirectory response back to client.\n");
+            printf("[-] Unable to send the Storage Server ID, PORT back to client.\n");
         }
     }
 
-    // Deleting files
-    else if(op == atoi(DELETE_FILE))
-    {        
-        createDeletionHandler(path, response, DELETE_FILE);
-        if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the deleteFile response back to client.\n");
-        }
-    }
-
-    // Delete Folder
-    else if(op == atoi(DELETE_DIRECTORY))
-    {        
-        createDeletionHandler(path, response, DELETE_DIRECTORY);
-        if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the deleteDirectory response back to client.\n");
-        }
-    }
-
-    // Copy files
-    else if(op == atoi(COPY_FILES)){ 
+    // Copy files, directories
+    else if(op == atoi(COPY_FILES) || op == atoi(COPY_DIRECTORY)){ 
         char path2[BUFFER_LENGTH];
         if(nonBlockingRecv(clientSocket, path2)){
             close(clientSocket);
             return NULL;
         }
 
-        copyHandler(path, path2, response, COPY_FILES);
+        copyHandler(path, path2, response, Msg);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createFile response back to client.\n");
+            printf("[-] Unable to send the copyHandler response back to client.\n");
         }
     }
 
-    // Copy Folders
-    else if(op == atoi(COPY_DIRECTORY)){ 
-        char path2[BUFFER_LENGTH];
-        if(nonBlockingRecv(clientSocket, path2)){
-            close(clientSocket);
-            return NULL;
-        }
-
-        copyHandler(path, path2, response, COPY_DIRECTORY);
-        if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the createFile response back to client.\n");
+    else{
+        sprintf(Msg, "%d", ERROR_INVALID_REQUEST_NUMBER);
+        if(sendData(clientSocket, Msg)) {
+            printf("[-] Unable to send the Inavlid request no. back to client.\n");
         }
     }
 

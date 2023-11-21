@@ -29,7 +29,7 @@ int open_a_connection_port(int Port, int num_listener);
 void* handleNameServerThread(void* args);
 void* handleClientRequest(void*);
 void requestHandler(int requestNo, int clientSocket);
-void cleanUpFileStruct();
+int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int check);
 
 
 #endif

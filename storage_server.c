@@ -148,8 +148,7 @@ int sendInfoToNamingServer(const char *nsIP, int nsPort, int clientPort)
     char path[PATH_BUFFER_SIZE];
     while (fgets(path, sizeof(path), pathFile) != NULL)
     {
-        if(path[strlen(path)-1] == '\n') 
-            path[strlen(path)-1] = '\0';
+        if(path[strlen(path)-1] == '\n') path[strlen(path)-1] = '\0';
         strcat(infoBuffer, path);
         strcat(infoBuffer, ":");
     }
@@ -263,7 +262,7 @@ void* handleNameServerThread(void* args)
         return NULL;
     }  
 
-    // Receiving the first path
+    // Receiving and sending confirmation for the first path
     char path[BUFFER_LENGTH], response[100];
     if(receivePath(nsSocket, path)){
         close(nsSocket);
@@ -325,68 +324,12 @@ void* handleNameServerThread(void* args)
 
 
 ////////////////////// FUNCTIONS TO HANDLE COMMUNICATION WITH CLIENT /////////////////////////
-int receiveAndValidateRequestNo(int clientSocket)
-{
-    int valid = 0;
-    char request[RECEIVE_BUFFER_LENGTH];
-    char response[100];
-
-    // Receiving the request no from the client
-    if(recv(clientSocket, request, sizeof(request), 0) < 0){
-        perror("[-] Error receive_validateRequestNo(): receiving operation number from the client");
-        return -1;
-    }
-    int request_no = atoi(request);
-
-    // Validating the range of the request number
-    if(request_no < 1 || request_no > 9) {
-        valid = 10;
-        request_no = -1;
-    }
-    else valid = 0;
-    sprintf(response, "%d", valid);
-
-    // Sending back the response
-    if(send(clientSocket, response, strlen(response), 0) < 0){
-        perror("[-] Error receive_validateRequestNo(): Unable to send reply to request no.");
-        return -1;
-    }
-    return request_no;
-}
-
-
-int receiveAndValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int validate)
-{
-    // Receiving the filePath
-    if(recv(clientSocket, filepath, MAX_PATH_LENGTH, 0) < 0){
-        perror("[-] Error receiveAndValidateFilePath(): Unable to receive the file path");
-        close(clientSocket);
-        return -1;
-    } 
-
-    // Validating the filepath based on return value (ERROR_CODE)
-    char response[100];
-    int valid = 0;
-
-    if(validate){
-        valid = validateFilePath(filepath, operation_no, file);
-    }
-    sprintf(response, "%d", valid);
-    
-    //Sending back the response
-    if(send(clientSocket, response, strlen(response), 0) < 0){
-        perror("[-] Error receive_validateRequestNo(): Unable to send reply to request no.");
-        return -1;
-    }
-    return valid;
-}
-
-
 void handleClients()
 {
+    struct sockaddr_in client_address;
+    socklen_t address_size = sizeof(struct sockaddr_in);
+    
     while(1){
-        struct sockaddr_in client_address;
-        socklen_t address_size = sizeof(struct sockaddr_in);
         int clientSocket = accept(clientSocketID, (struct sockaddr*)&client_address, &address_size);
         if (clientSocket < 0) {
             perror("[-] Error handleClients(): Client accept failed");
@@ -412,11 +355,12 @@ void handleClients()
 }
 
 
+// Function (thread function) to handle individual client request
 void* handleClientRequest(void* argument)
 {
-    // Receiving and validating the request no. from the client
+    // Receiving and validating the Operation number from the client
     int clientSocket = *(int*)argument;
-    int request_no = receiveAndValidateRequestNo(clientSocket);
+    int request_no = receiveOperationNumber(clientSocket);
     if(request_no == -1) return NULL;
     
     File file;
@@ -424,26 +368,52 @@ void* handleClientRequest(void* argument)
 
 
     //READ FILE
-    if(request_no == 3 && receiveAndValidateFilePath(clientSocket, filepath, 3, &file, 1) == 0) {
+    if(request_no == 3 && receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0) {
         uploadFile(filepath, clientSocket);
         decreaseReaderCount(&file);
     }
 
     // WRITE FILE
     else if(request_no == 4){
-        if(receiveAndValidateFilePath(clientSocket, filepath, 4, &file, 1) == 0){
+        if(receive_ValidateFilePath(clientSocket, filepath, atoi(WRITE_FILE), &file, 1) == 0){
             downloadFile(filepath, clientSocket);
             openWriteLock(&file);
         }
     }
 
     // GET PERMISSIONS
-    else if(request_no == 5 && receiveAndValidateFilePath(clientSocket, filepath, 5, NULL, 1) == 0){
+    else if(request_no == 5 && receive_ValidateFilePath(clientSocket, filepath, atoi(GET_FILE_PERMISSIONS), NULL, 1) == 0){
         getFileMetaData(filepath, clientSocket);
     }
 
     close(clientSocket);
     return NULL;
+}
+
+
+// Function to receive the "file" path from the client
+int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no, File* file, int check)
+{
+    // Receiving the file path
+    if(nonBlockingRecv(clientSocket, filepath)){
+        perror("[-] Error receive_ValidateFilePath(): Unable to receive the file path");
+        close(clientSocket);
+        return -1;
+    } 
+
+    // Validating the filepath based on return value (ERROR_CODE)
+    char response[100];
+    int valid = 0;
+
+    if(check) valid = validateFilePath(filepath, operation_no, file);
+    else sprintf(response, "%d", valid);
+
+    //Sending back the response
+    if(sendData(clientSocket, response)){
+        perror("[-] Error receive_validateRequestNo(): Unable to send reply to Path sent");
+        return -1;
+    }
+    return valid;
 }
 
 

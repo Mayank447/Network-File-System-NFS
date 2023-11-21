@@ -81,6 +81,12 @@ int sendOperation_PathToNameServer(char* operation_num, char* path)
         return -1;
     }
 
+    if(sendConfirmation(nsSocket)){
+        printf("[-] Error sending confirmation on received confirmation.\n");
+        close(nsSocket);
+        return -1;
+    }
+
     return nsSocket;
 }
 
@@ -123,9 +129,9 @@ int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 // Parsing the IP address and PORT for the storage server
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
-    if(atoi(data) == ERROR_PATH_DOES_NOT_EXIST ||
-        atoi(data) == NAME_SERVER_ERROR) {
-        printf("[-] INVALID FILE PATH\n");
+    printf("Received IP_PORT: %s\n", data);
+    if(atoi(data) > 0) {
+        printError(data);
         return -1;
     }
 
@@ -183,7 +189,7 @@ int writeToFile(char* path, char* data) // Function to upload a file to the serv
     int nsSocket, PORT;
     char IP_address[20];
 
-    if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
+    if((nsSocket = sendOperation_PathToNameServer(WRITE_FILE, path)) == -1){
         return -1;
     }
 
@@ -246,7 +252,7 @@ int getPermissions(char* path)
     int nsSocket, PORT;
     char IP_address[20];
 
-    if((nsSocket = sendOperation_PathToNameServer(READ_FILE, path)) == -1){
+    if((nsSocket = sendOperation_PathToNameServer(GET_FILE_PERMISSIONS, path)) == -1){
         return -1;
     }
 

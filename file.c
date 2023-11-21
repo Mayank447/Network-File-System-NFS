@@ -237,8 +237,8 @@ void getFileMetaData(char* filepath, int clientSocketID)
     }
 
     // Send the formatted metadata or error buffer
-    if (send(clientSocketID, buffer, strlen(buffer), 0) < 0) {
-        perror("[-] Error sending file metadata");
+    if (sendData(clientSocketID, buffer)){
+        printf("[-] Error sending file metadata\n");
     }
 }
 

@@ -15,6 +15,7 @@ int checkFileType(char* path);
 int fileExists(char *filename);
 void createFile(char* path, char* response);
 void deleteFile(char *filename, char* response);
+void getFileMetaData(char* filepath, int clientSocketID);
 void copyFile(char* ss_path, char* response);
 void copyDirectory(char* ss_path, char* response);
 

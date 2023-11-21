@@ -194,8 +194,8 @@ int receiveConfirmation(int serverSocket)
 int checkOperationNumber(char* buffer)
 {
     int num = atoi(buffer);
+    if(num <= 0 || num > 9) return -1;
     bzero(buffer, BUFFER_LENGTH);
-    if(atoi(buffer) < 0 || atoi(buffer) > 9) return -1;
     return num;
 }
 
