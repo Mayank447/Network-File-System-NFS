@@ -221,6 +221,8 @@ int writeToFile(char* path, char* data)
         return -1;
     }
 
+    if(receiveConfirmation(serverSocket)) return -1;
+
     // Break data into buffer chunks and send
     size_t data_length = strlen(data);
     size_t sent_bytes = 0;
@@ -235,8 +237,8 @@ int writeToFile(char* path, char* data)
 
         // Send the current chunk
         strncpy(temp, data + sent_bytes, current_chunk_size);
-        ssize_t bytes_sent = sendData(serverSocket, temp);
-        printf("%zd\n", bytes_sent);
+        int bytes_sent = sendData(serverSocket, temp);
+        printf("%d\n", bytes_sent);
 
         if (bytes_sent == -1) {
             perror("[-] Error writeToFile(): Send failed");
@@ -244,6 +246,11 @@ int writeToFile(char* path, char* data)
             return -1;
         }
         sent_bytes += current_chunk_size; // Update the total sent bytes
+    }
+
+    if (sendData(serverSocket, "COMPLETE")){
+        perror("[-] Error sending COMPLETE");
+        return -1;
     }
 
     printf("[+] Uploaded File successfully\n");

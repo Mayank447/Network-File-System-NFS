@@ -173,11 +173,11 @@ void cleanUpFileStruct(){
 void openWriteLock(char* path){
     File* file = fileHead;
     while(file != NULL) {
-        if(strcmp(path, file->filepath)==0){
+        if(strcmp(path, file->filepath) == 0){
             pthread_mutex_lock(&file->read_write_lock);
             file->read_write = -1;
             pthread_mutex_unlock(&file->read_write_lock);
-            break;
+            return;
         }
         file = file->next;
     }
@@ -283,7 +283,7 @@ void deleteFile(char *filename, char* response)
 // Function to download a file
 void DownloadFile(int serverSocket, char* filename)
 {
-    char buffer[BUFFER_LENGTH], buffer2[BUFFER_LENGTH];
+    char buffer[BUFFER_LENGTH];
     if(nonBlockingRecv(serverSocket, buffer)) return;
     
     if(strcmp(buffer, VALID_STRING) != 0){
@@ -314,9 +314,8 @@ void DownloadFile(int serverSocket, char* filename)
             return;
         }
         
-        char* end_index;
-        if((end_index = strstr(buffer, "COMPLETE")) != NULL) {
-            fprintf(file, "%s", buffer2);
+        if(strstr(buffer, "COMPLETE") != NULL) {
+            printf("Buffer2: %s\n", buffer);
             break;
         }
 

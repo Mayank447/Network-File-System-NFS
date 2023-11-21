@@ -203,17 +203,16 @@ void* NameServerPulseHandler()
 
     while(1 && not_received_count < NOT_RECEIVED_COUNT)
     {
-        // Receiving the operation code from Nameserver
         bzero(buffer, BUFFER_LENGTH);
+        if(sendData(nsSocket, "DOWN")){;}
+        sleep(PERIODIC_HEART_BEAT);
+
         if(nonBlockingRecvPeriodic(nsSocket, buffer)) {
             not_received_count++;
             continue;
         }
         not_received_count = 0;
-
-        if(strcmp(buffer, "DOWN") != 0) break;
-        if(sendData(nsSocket, "UP")) continue;
-        sleep(PERIODIC_HEART_BEAT);
+        if(strcmp(buffer, "UP") != 0) break;
     }
     printf("[-] Connection with Nameserver is broken\n");
     close(nsSocket);

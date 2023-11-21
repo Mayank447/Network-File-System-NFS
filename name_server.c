@@ -201,16 +201,17 @@ void* handleStorageServer(void* argument)
     server->running = 1;
 
     while(1 && not_received_count < NOT_RECEIVED_COUNT){
+        // Receiving the operation code from Nameserver
         bzero(buffer, BUFFER_LENGTH);
-        if(sendData(serverSocket, "DOWN")) continue;
-        sleep(PERIODIC_HEART_BEAT);
-
         if(nonBlockingRecvPeriodic(serverSocket, buffer)) {
             not_received_count++;
             continue;
         }
         not_received_count = 0;
-        if(strcmp(buffer, "UP") != 0) break;
+
+        if(strcmp(buffer, "DOWN") != 0) break;
+        if(sendData(serverSocket, "UP")){;}
+        sleep(PERIODIC_HEART_BEAT);
     }
     server->running = 0;
     sprintf(Msg, "Storage server %d is down\n", serverID);
