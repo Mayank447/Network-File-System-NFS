@@ -510,6 +510,9 @@ void* handleClientRequests(void* socket)
         return NULL;
     }
 
+    sprintf(NS_Msg, "New connection request with operation number %d", op);
+    logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+
     // Receiving the path
     if(nonBlockingRecv(clientSocket, path)){
         close(clientSocket);
@@ -541,6 +544,8 @@ void* handleClientRequests(void* socket)
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the creationDeletionHandler response back to client.\n");
         }
+        sprintf(NS_Msg, "Creation/Deletion %s done", path);
+        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
     }
 
     // Read file, write to file, get File Permission
@@ -551,6 +556,8 @@ void* handleClientRequests(void* socket)
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the copyHandler response back to client.\n");
         }
+        sprintf(NS_Msg, "File operation(read, write, getFile Permission) on %s done", path);
+        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
     }
 
     // Copy files, directories
@@ -568,6 +575,8 @@ void* handleClientRequests(void* socket)
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the copyHandler response back to client.\n");
         }
+        sprintf(NS_Msg, "Copying of %s to %s done", path, path2);
+        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
     }
 
     else{
@@ -575,7 +584,10 @@ void* handleClientRequests(void* socket)
         if(sendData(clientSocket, NS_Msg)) {
             printf("[-] Unable to send the Inavlid request no. back to client.\n");
         }
+        sprintf(NS_Msg, "Invalid operation number %d", op);
+        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
     }
+
 
     close(clientSocket);
     return NULL;
