@@ -129,8 +129,6 @@ int getStorageServerIP_Port(int nsSocket, char* IP_address, int* PORT)
 // Parsing the IP address and PORT for the storage server
 int parseIpPort(char *data, char *ip_address,int *ss_port)
 {
-    printf("Received IP_PORT: %s\n", data);
-
     // IP address parsing format "IP:PORT"
     if (sscanf(data, "%[^:]:%d", ip_address, ss_port) != 2){
         printf("[-] Error parsing storage server info: %s\n", data);
@@ -161,7 +159,9 @@ int readFile(char* path)
     }
 
     int serverSocket = connectToServer(IP_address, PORT);
-    if(sendDataAndReceiveConfirmation(serverSocket, CREATE_FILE)){
+    if(serverSocket < 0) return -1;
+    
+    if(sendDataAndReceiveConfirmation(serverSocket, READ_FILE)){
         printf("[-] Error sending or receiving confirmation for Operation Number\n");
         close(serverSocket);
         return -1;
@@ -181,7 +181,8 @@ int readFile(char* path)
 }
 
 
-int writeToFile(char* path, char* data) // Function to upload a file to the server
+// Function to write to a file on the server
+int writeToFile(char* path, char* data) 
 {
     int nsSocket, PORT;
     char IP_address[20];
@@ -244,6 +245,7 @@ int writeToFile(char* path, char* data) // Function to upload a file to the serv
 }
 
 
+// Function to get the file permissions
 int getPermissions(char* path)
 {
     int nsSocket, PORT;
@@ -290,7 +292,7 @@ int getPermissions(char* path)
 }
 
 
-// To the formatted requested meta data for a file
+// To the format requested meta data for a file
 void parseMetadata(char *data) 
 {
     // Format - filepath : filesize : file_permissions : last_access_time : last_modification_time : creation_time

@@ -28,6 +28,7 @@ int validateFilePath(char* filepath, int operation_no, File* file)
     File* ptr = fileHead;
     while(ptr != NULL) 
     {
+        printf("%s\n", ptr->filepath);
         // If the file found and the operation is to read
         if(strcmp(filepath, ptr->filepath)==0 && operation_no == 3)
         {

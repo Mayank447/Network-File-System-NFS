@@ -1,7 +1,7 @@
 #include "header_files.h"
 #include "helper_functions.h"
 
-char error_message[1024];
+char error_message[ERROR_BUFFER_LENGTH];
 
 // Function to handle the error codes based on Nameserver/storage server response
 void handleErrorCodes(char* response, char* message)
@@ -93,7 +93,7 @@ void* receiveInfo(void* thread_args)
     if(recv(args->serverSocket, args->buffer, BUFFER_LENGTH, 0) < 0){
         perror("[-] Error createFile(): Unable to receive info");
         args->threadResult = -1;
-        pthread_testcancel();
+        args->threadStatus = THREAD_FINISHED;
         return NULL;
     }
     pthread_testcancel();
@@ -257,29 +257,29 @@ void downloadFile(char* filename, int socket)
     }
 
     // Waiting for FILE Opened message
-    int bytesReceived;
     char buffer[BUFFER_LENGTH];
-    if(recv(socket, buffer, 2, 0) < 0){
-        perror("[-] Error downloadFile(): Unable to receive the file open confirmation");
+    if(nonBlockingRecv(socket, buffer)){
+        perror("[-] Error downloadFile() - Unable to receive the file open confirmation");
         fclose(file);
         return;
     }
 
-    if(atoi(buffer) != 0){
-        bzero(error_message, 1024);
-        handleErrorCodes(buffer, error_message);
-        printf("Error: %s\n", error_message);
+    if(strcmp(buffer, VALID_STRING) != 0){
+        printError(buffer);
+        fclose(file);
+        return;
     }
 
     // Receiving the FILE DATA
     while(1)
     {
-        bytesReceived = recv(socket, buffer, sizeof(buffer), 0);
-        if(bytesReceived == 0) break;
-        if(bytesReceived < 0){
-            perror("[-] Error downloadFile(): Unable to receive the file data");
-            break;
+        if(nonBlockingRecv(socket, buffer)){
+            perror("[-] Error downloadFile(): Unable to receive the file open confirmation");
+            fclose(file);
+            return;
         }
+
+        if(strcmp(buffer, "COMPLETE") == 0) break;
 
         if(fprintf(file, "%s", buffer) < 0){
             printf("Error downloadFile(): Unable to write to the file");
@@ -298,21 +298,36 @@ void uploadFile(char *filename, int clientSocket)
     FILE *file = fopen(filename, "r");
     bzero(error_message, ERROR_BUFFER_LENGTH);
 
-    if (!file) sprintf(error_message, "13");
-    else sprintf(error_message, "0");
+    if (!file) sprintf(error_message, "%d", ERROR_OPENING_FILE);
+    else sprintf(error_message, VALID_STRING);
 
-    if (send(clientSocket, error_message, strlen(error_message), 0) < 0){
+    if(sendData(clientSocket, error_message)){
         perror("[-] Error UploadingFile(): Unable to send file opened message");
+        fclose(file);
+        return;
+    }
+
+    if(!file) fclose(file);
+
+    else if(receiveConfirmation(clientSocket)){
+        perror("[-] Error UploadingFile(): Receiving confirmation on sent message");
+        fclose(file);
     }
 
     else {
-        char buffer[1024] = {'\0'};
-        while (fgets(buffer, sizeof(buffer), file) != NULL){
-            if (send(clientSocket, buffer, strlen(buffer), 0) < 0){
+        char buffer[BUFFER_LENGTH] = {'\0'};
+        while (fgets(buffer, BUFFER_LENGTH, file) != NULL){
+            if (sendData(clientSocket, buffer)){
                 perror("[-] Error sending file");
                 fclose(file);
                 return;
             }
+        }
+
+        if (sendData(clientSocket, "COMPLETE")){
+            perror("[-] Error sending COMPLETE");
+            fclose(file);
+            return;
         }
 
         fclose(file);
@@ -373,6 +388,7 @@ int connectToServer(const char* IP_address, const int PORT)
     }
     return serverSocket;
 }
+
 
 // Function to send the specified data and wait for confirmation i.e. VALID_STRING
 int sendDataAndReceiveConfirmation(int socket, char* data){

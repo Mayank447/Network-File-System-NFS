@@ -403,7 +403,6 @@ int receive_ValidateFilePath(int clientSocket, char* filepath, int operation_no,
     // Receiving the file path
     if(nonBlockingRecv(clientSocket, filepath)){
         perror("[-] Error receive_ValidateFilePath(): Unable to receive the file path");
-        close(clientSocket);
         return -1;
     } 
 
