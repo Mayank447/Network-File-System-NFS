@@ -289,44 +289,6 @@ void downloadFile(char* filename, int serverSocket)
 }
 
 
-void uploadFile(char *filename, int clientSocket)
-{
-    // Open the file for reading on the server side
-    FILE *file = fopen(filename, "r");
-    bzero(error_message, ERROR_BUFFER_LENGTH);
-
-    if (!file) sprintf(error_message, "%d", ERROR_OPENING_FILE);
-    else sprintf(error_message, VALID_STRING);
-
-    if(sendDataAndReceiveConfirmation(clientSocket, error_message)){
-        perror("[-] Error UploadingFile(): Unable to send file opened message");
-        fclose(file);
-        return;
-    }
-
-    if(!file) fclose(file);
-
-    else {
-        char buffer[BUFFER_LENGTH] = {'\0'};
-        while (fgets(buffer, BUFFER_LENGTH, file) != NULL){
-            if (sendData(clientSocket, buffer)){
-                perror("[-] Error sending file");
-                fclose(file);
-                return;
-            }
-        }
-
-        if (sendData(clientSocket, "COMPLETE")){
-            perror("[-] Error sending COMPLETE");
-            fclose(file);
-            return;
-        }
-
-        fclose(file);
-        printf("File %s sent successfully.\n", filename);
-    }
-}
-
 
 // Function to open a connection to a PORT and accept a single connection
 int open_a_connection_port(int Port, int num_listener)

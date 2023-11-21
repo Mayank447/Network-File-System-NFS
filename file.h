@@ -22,6 +22,7 @@ void deleteFile(char *filename, char* response);
 void getFileMetaData(char* filepath, int clientSocketID);
 void copyFile(char* ss_path, char* response);
 void copyDirectory(char* ss_path, char* response);
-int DownloadFile(int serverSocket, char* filename);
+void DownloadFile(int serverSocket, char* filename);
+void UploadFile(int serverSocket, char* filename);
 
 #endif

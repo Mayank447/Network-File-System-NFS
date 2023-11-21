@@ -200,6 +200,8 @@ int writeToFile(char* path, char* data)
     }
 
     int serverSocket = connectToServer(IP_address, PORT);
+    if(serverSocket < 0) return -1;
+    
     if(sendDataAndReceiveConfirmation(serverSocket, WRITE_FILE)){
         printf("[-] Error sending or receiving confirmation for Operation Number\n");
         close(serverSocket);
@@ -213,7 +215,7 @@ int writeToFile(char* path, char* data)
     }
 
     // Ready to send data
-    if(send(serverSocket, "0", 1, 0) < 0){
+    if(sendData(serverSocket, VALID_STRING)){
         perror("[-] Error writeToFile(): Unable to send ready to send message");
         close(serverSocket);
         return -1;
@@ -223,6 +225,7 @@ int writeToFile(char* path, char* data)
     size_t data_length = strlen(data);
     size_t sent_bytes = 0;
     size_t chunk_size = BUFFER_LENGTH;
+    char temp[BUFFER_LENGTH];
 
     while (sent_bytes < data_length)
     {
@@ -231,7 +234,8 @@ int writeToFile(char* path, char* data)
         size_t current_chunk_size = (remaining_bytes < chunk_size) ? remaining_bytes : chunk_size;
 
         // Send the current chunk
-        ssize_t bytes_sent = send(serverSocket, data + sent_bytes, current_chunk_size, 0);
+        strncpy(temp, data + sent_bytes, current_chunk_size);
+        ssize_t bytes_sent = sendData(serverSocket, temp);
         printf("%zd\n", bytes_sent);
 
         if (bytes_sent == -1) {
@@ -239,7 +243,7 @@ int writeToFile(char* path, char* data)
             close(serverSocket);
             return -1;
         }
-        sent_bytes += bytes_sent; // Update the total sent bytes
+        sent_bytes += current_chunk_size; // Update the total sent bytes
     }
 
     printf("[+] Uploaded File successfully\n");

@@ -371,7 +371,7 @@ void* handleClientRequest(void* argument)
     //READ FILE
     if(request_no == 3) {
         if(receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0){
-            uploadFile(filepath, clientSocket);
+            UploadFile(clientSocket, filepath);
             decreaseReaderCount(&file);
         }
     }
@@ -379,7 +379,7 @@ void* handleClientRequest(void* argument)
     // WRITE FILE
     else if(request_no == 4){
         if(receive_ValidateFilePath(clientSocket, filepath, atoi(WRITE_FILE), &file, 1) == 0){
-            downloadFile(filepath, clientSocket);
+            DownloadFile(clientSocket, filepath);
             openWriteLock(&file);
         }
     }

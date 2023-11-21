@@ -3,6 +3,8 @@
 
 // Some global variables
 char Msg[BUFFER_LENGTH];
+char error_message[ERROR_BUFFER_LENGTH];
+
 File* fileHead = NULL;
 File* fileTail = NULL;
 
@@ -265,22 +267,22 @@ void deleteFile(char *filename, char* response)
 
 
 // Function to download a file
-int DownloadFile(int serverSocket, char* filename)
+void DownloadFile(int serverSocket, char* filename)
 {
     char buffer[BUFFER_LENGTH], buffer2[BUFFER_LENGTH];
-    if(nonBlockingRecv(serverSocket, buffer)) return -1;
+    if(nonBlockingRecv(serverSocket, buffer)) return;
     
     if(strcmp(buffer, VALID_STRING) != 0){
         printError(buffer);
-        return -1;
+        return;
     }
 
-    if(sendConfirmation(serverSocket)) return -1;
+    if(sendConfirmation(serverSocket)) return;
 
     FILE* file = fopen(filename, "w");
     if(!file){
         printf("Unable to open the FILE %s for writing\n", filename);
-        return -1;
+        return;
     }
 
     // Receiving the FILE DATA
@@ -298,18 +300,57 @@ int DownloadFile(int serverSocket, char* filename)
         else if(status){
             printf("Error downloadFile(): Unable to received file content");
             fclose(file);
-            return -1;
+            return;
         }
 
         else if(fprintf(file, "%s", buffer) < 0){
             printf("Error downloadFile(): Unable to write to the file");
             fclose(file);
-            return -1;
+            return;
         }
     }
     fclose(file);
     printf("File %s downloaded successfully.\n", filename);
-    return 0;
+}
+
+
+// Function to upload a file
+void UploadFile(int clientSocket, char* filename)
+{
+    // Open the file for reading on the server side
+    FILE *file = fopen(filename, "r");
+    bzero(error_message, ERROR_BUFFER_LENGTH);
+
+    if (!file) sprintf(error_message, "%d", ERROR_OPENING_FILE);
+    else sprintf(error_message, VALID_STRING);
+
+    if(sendDataAndReceiveConfirmation(clientSocket, error_message)){
+        perror("[-] Error UploadingFile(): Unable to send file opened message");
+        fclose(file);
+        return;
+    }
+
+    if(!file) fclose(file);
+
+    else {
+        char buffer[BUFFER_LENGTH] = {'\0'};
+        while (fgets(buffer, BUFFER_LENGTH, file) != NULL){
+            if (sendData(clientSocket, buffer)){
+                perror("[-] Error sending file");
+                fclose(file);
+                return;
+            }
+        }
+
+        if (sendData(clientSocket, "COMPLETE")){
+            perror("[-] Error sending COMPLETE");
+            fclose(file);
+            return;
+        }
+
+        fclose(file);
+        printf("File %s sent successfully.\n", filename);
+    }
 }
 
 
