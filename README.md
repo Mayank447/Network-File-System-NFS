@@ -1,8 +1,15 @@
 # READ ME!
-# NFS: ~~ Need For Speed ~~ Network File System Implementation
+
+# NFS: ~~Need For Speed~~ Network File System Implementation
 
 ## ASSUMPTIONS
-Woooooooooooooooooooooooooohooooooooohooooooooo
+
+- User inputs the accessible paths of the storage server during its initialisation.
+- User inputs the IP address of the Name Server, port to communicate with the client and name server also during storage server initialisation
+- All files folders are assumed to have the same permissons ~~Communism~~
+- Creation of file/folder made with permission 0777.
+- Assumed parameters defined as macros seperately.
+- Assume responses come with a gap of atleast 5 seconds.
 
 ## Brief Overview of the various roles played in this drama named "NFS"
 
@@ -12,7 +19,7 @@ This is the brain of the project, facilitating communication between clients and
 On requesting a file or folder by the clients, also provides with information about the specific storage server.
 Basically a directory service while ensuring efficient and accurate file access.
 
-Important Features to note:
+**Important Features to note:**
 
 #### LRU Implementation
 
@@ -41,6 +48,7 @@ Functions:
 - **Getting File Meta Data:** Clients can access a wealth of supplementary information about specific files. This includes details such as file size, access rights, timestamps, and other metadata, providing clients with comprehensive insights into the files they interact with.
 
 #### Features
+
 - Handle multiple clients concurrently. 
 - Set of well defined error codes that can be returned when a client’s request cannot be accommodated.
 - Efficient Search using hashmaps to enhance response times, useful for systems with a large number of files and folders.
