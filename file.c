@@ -380,8 +380,9 @@ void copyFile(char* ss_path, char* response)
     }
 
     int copySocket = connectToServer(IP_address, PORT);
-    
-    if(sendDataAndReceiveConfirmation(copySocket, WRITE_FILE)){
+    printf("[+] Connected to copy server\n");
+
+    if(sendDataAndReceiveConfirmation(copySocket, COPY_FILES)){
         printf("[-] Error sending Copying Operation number");
         return;
     }

@@ -340,11 +340,23 @@ int copyFileClient(char* path)
 
     char path2[MAX_PATH_LENGTH];
     getFilePath(path2);
-    if(sendDataAndReceiveConfirmation(nsSocket, path2)){
+    if(sendData(nsSocket, path2)){
         printf("[-] Error in sending second path\n");
         return -1;
     }
 
+    // Receiving the file permission from the server
+    char buffer[BUFFER_LENGTH];
+    if(nonBlockingRecv(nsSocket, buffer)){
+        close(nsSocket);
+        return -1;
+    }
+
+    // Checking for an error
+    if(atoi(buffer) != 0){
+        printError(buffer);
+        return -1;
+    }
     return 0;
 }
 

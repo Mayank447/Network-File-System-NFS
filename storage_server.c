@@ -300,15 +300,17 @@ void* handleNameServerThread(void* args)
         }
     }
 
-    // Delete File
+    // Copy File
     else if(op == atoi(COPY_FILES)){
+        printf("Inside\n");
+        printf("Path: %s\n", path);
         copyFile(path, response);
         if(sendData(nsSocket, response)){
             printf("[-] Error sending deleteFile() response to Name server\n");
         }
     }
 
-    // Delete Directory
+    // Copy Directory
     else if(op == atoi(COPY_DIRECTORY)){
         copyDirectory(path, response);
         if(sendData(nsSocket, response)){
@@ -367,7 +369,7 @@ void* handleClientRequest(void* argument)
 
 
     //READ FILE
-    if(request_no == 3) {
+    if(request_no == atoi(READ_FILE)) {
         if(receive_ValidateFilePath(clientSocket, filepath, READ_FILE, 1) == 0){
             UploadFile(clientSocket, filepath);
             decreaseReaderCount(filepath);
@@ -375,7 +377,7 @@ void* handleClientRequest(void* argument)
     }
 
     // WRITE FILE
-    else if(request_no == 4){
+    else if(request_no == atoi(WRITE_FILE)){
         if(receive_ValidateFilePath(clientSocket, filepath, WRITE_FILE, 1) == 0){
             DownloadFile(clientSocket, filepath);
             openWriteLock(filepath);
@@ -383,9 +385,16 @@ void* handleClientRequest(void* argument)
     }
 
     // GET PERMISSIONS
-    else if(request_no == 5){
+    else if(request_no == atoi(GET_FILE_PERMISSIONS)){
         if(receive_ValidateFilePath(clientSocket, filepath, GET_FILE_PERMISSIONS, 1) == 0){
             getFileMetaData(filepath, clientSocket);
+        }
+    }
+
+    // COPY FILES
+    else if(request_no == atoi(COPY_FILES)){
+        if(receive_ValidateFilePath(clientSocket, filepath, COPY_FILES, 0) == 0){
+            DownloadFile(clientSocket, filepath);
         }
     }
 

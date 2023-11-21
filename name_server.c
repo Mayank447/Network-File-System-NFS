@@ -480,10 +480,7 @@ void* handleClientRequests(void* socket)
             return NULL;
         }
 
-        if(sendConfirmation(clientSocket)){
-            printf("[-] Error sending confirmation for path2\n");
-        }
-        printf("Path 2: %s\n", path2);
+        printf("Path2: %s\n", path2);
 
         copyHandler(path, path2, response, NS_Msg);
         if(sendData(clientSocket, response)) {
@@ -577,10 +574,8 @@ void createDeletionHandler(char* path, char* response, char* type)
 void copyHandler(char* path1, char* path2, char* response, char* op)
 {
     struct StorageServerInfo *server1 = NULL, *server2 = NULL;
-    if(strcmp(op, DELETE_FILE)==0 || strcmp(op, DELETE_DIRECTORY)==0){
-        server1 = searchStorageServer(path1);
-        server2 = searchStorageServer(path1);
-    }
+    server1 = searchStorageServer(path1);
+    server2 = searchStorageServer(path2);
 
     // If one of the path doesn't exist exit
     if(!server1 || !server2){
