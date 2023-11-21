@@ -2,8 +2,8 @@
 #include "file.h"
 
 // Some global variables
-char Msg[BUFFER_LENGTH];
-char error_message[ERROR_BUFFER_LENGTH];
+char File_Msg[BUFFER_LENGTH];
+char error_message_file[ERROR_BUFFER_LENGTH];
 
 File* fileHead = NULL;
 File* fileTail = NULL;
@@ -330,19 +330,19 @@ void DownloadFile(int serverSocket, char* filename)
 
 
 // Function to upload a file
-void UploadFile(int clientSocket, char* filename)
+int UploadFile(int clientSocket, char* filename)
 {
     // Open the file for reading on the server side
     FILE *file = fopen(filename, "r");
-    bzero(error_message, ERROR_BUFFER_LENGTH);
+    bzero(error_message_file, ERROR_BUFFER_LENGTH);
 
-    if (!file) sprintf(error_message, "%d", ERROR_OPENING_FILE);
-    else sprintf(error_message, VALID_STRING);
+    if (!file) sprintf(error_message_file, "%d", ERROR_OPENING_FILE);
+    else sprintf(error_message_file, VALID_STRING);
 
-    if(sendDataAndReceiveConfirmation(clientSocket, error_message)){
+    if(sendDataAndReceiveConfirmation(clientSocket, error_message_file)){
         perror("[-] Error UploadingFile(): Unable to send file opened message");
         fclose(file);
-        return;
+        return -1;
     }
 
     if(!file) fclose(file);
@@ -353,24 +353,45 @@ void UploadFile(int clientSocket, char* filename)
             if (sendDataAndReceiveConfirmation(clientSocket, buffer)){
                 perror("[-] Error sending file");
                 fclose(file);
-                return;
+                return -1;
             }
         }
 
         if (sendData(clientSocket, "COMPLETE")){
             perror("[-] Error sending COMPLETE");
             fclose(file);
-            return;
+            return -1;
         }
 
         fclose(file);
         printf("File %s sent successfully.\n", filename);
     }
+    return 0;
 }
 
 
-void copyFile(char* ss_path, char* response){
+void copyFile(char* ss_path, char* response)
+{
+    char IP_address[20], path[MAX_PATH_LENGTH];
+    int PORT = 0;
+    if(sscanf(ss_path, "%[^:]:%d:%s", IP_address, &PORT, path) != 3){
+        printf("[-] Error parsing the SS_Path string\n");
+        return;
+    }
 
+    int copySocket = connectToServer(IP_address, PORT);
+    
+    if(sendDataAndReceiveConfirmation(copySocket, WRITE_FILE)){
+        printf("[-] Error sending Copying Operation number");
+        return;
+    }
+
+    if(sendDataAndReceiveConfirmation(copySocket, path)){
+        printf("[-] Error sending Copying Operation number");
+        return;
+    }
+    UploadFile(copySocket, path);
+    close(copySocket);
 }
 
 void copyDirectory(char* ss_path, char* response){

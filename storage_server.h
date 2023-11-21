@@ -12,9 +12,6 @@ typedef struct file_struct{
     struct file_struct* next;  
 } File;
 
-char ErrorMsg[1024];
-
-
 // Functions for files
 
 

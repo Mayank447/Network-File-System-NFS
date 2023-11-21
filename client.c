@@ -4,7 +4,7 @@
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
 
-char error_message[ERROR_BUFFER_LENGTH];
+char error_message_client[ERROR_BUFFER_LENGTH];
 
 ///////////////////////// USER INPUT OPERATION //////////////////////////
 
@@ -330,6 +330,24 @@ void parseMetadata(char *data)
 }
 
 
+int copyFileClient(char* path)
+{
+    int nsSocket;
+    if((nsSocket = sendOperation_PathToNameServer(COPY_FILES, path)) == -1){
+        printf("[-] Error in sending first path for file copying\n");
+        return -1;
+    }
+
+    char path2[MAX_PATH_LENGTH];
+    getFilePath(path2);
+    if(sendDataAndReceiveConfirmation(nsSocket, path2)){
+        printf("[-] Error in sending second path\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 
 ////////////////////////////// MAIN FUNCTION /////////////////////////////////
 int main()
@@ -401,7 +419,7 @@ int main()
         // Copy File
         else if(op == 8){
             getFilePath(path1);
-            if(performNSOperation(COPY_FILES, path1) != -1){
+            if(copyFileClient(path1) != -1){
                 printf("[+] Directory deleted successfully\n");
             }  
         }

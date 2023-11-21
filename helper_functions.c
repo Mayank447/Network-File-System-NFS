@@ -1,7 +1,7 @@
 #include "header_files.h"
 #include "helper_functions.h"
 
-char error_message[ERROR_BUFFER_LENGTH];
+char error_message_helper[ERROR_BUFFER_LENGTH];
 
 // Function to handle the error codes based on Nameserver/storage server response
 void handleErrorCodes(char* response, char* message)
@@ -59,9 +59,9 @@ void handleErrorCodes(char* response, char* message)
 
 // Function to print error given the string contaning the error code 
 void printError(char* response){
-    char error_message[ERROR_BUFFER_LENGTH];
-    handleErrorCodes(response, error_message);
-    printf("[-] %s\n", error_message);
+    char error_message_helper[ERROR_BUFFER_LENGTH];
+    handleErrorCodes(response, error_message_helper);
+    printf("[-] %s\n", error_message_helper);
 }
 
 // Remove leading whitespaces

@@ -23,6 +23,6 @@ void getFileMetaData(char* filepath, int clientSocketID);
 void copyFile(char* ss_path, char* response);
 void copyDirectory(char* ss_path, char* response);
 void DownloadFile(int serverSocket, char* filename);
-void UploadFile(int serverSocket, char* filename);
+int UploadFile(int serverSocket, char* filename);
 
 #endif

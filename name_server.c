@@ -26,7 +26,7 @@ void handle_signal(int signum) {
 }
 
 char* NameServerLog = "log.txt";
-char Msg[1000];
+char NS_Msg[1000];
 
 void logger(char* text, char* IP, int PORT) 
 {
@@ -214,8 +214,8 @@ void* handleStorageServer(void* argument)
         sleep(PERIODIC_HEART_BEAT);
     }
     server->running = 0;
-    sprintf(Msg, "Storage server %d is down\n", serverID);
-    logger(Msg, ip_address, naming_server_port);
+    sprintf(NS_Msg, "Storage server %d is down\n", serverID);
+    logger(NS_Msg, ip_address, naming_server_port);
     close(serverSocket);
     return NULL;
 }
@@ -369,8 +369,8 @@ void returnSS_IP_PORT(char* path, char* response)
     struct StorageServerInfo* server = searchStorageServer(path);
     strcat(response, server->ip_address);
     strcat(response, ":");
-    sprintf(Msg, "%d", server->client_server_port);
-    strcat(response, Msg);
+    sprintf(NS_Msg, "%d", server->client_server_port);
+    strcat(response, NS_Msg);
 }
 
 
@@ -449,13 +449,13 @@ void* handleClientRequests(void* socket)
         return NULL;
     }
 
-    sprintf(Msg, "%d", op);
+    sprintf(NS_Msg, "%d", op);
 
     // Create file, Create Folder, Delete File, Delete Folder
     if(op == atoi(CREATE_FILE) || op == atoi(CREATE_DIRECTORY) ||
         op == atoi(DELETE_FILE) || op == atoi(DELETE_DIRECTORY))
     {        
-        createDeletionHandler(path, response, Msg);
+        createDeletionHandler(path, response, NS_Msg);
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the creationDeletionHandler response back to client.\n");
         }
@@ -472,22 +472,28 @@ void* handleClientRequests(void* socket)
     }
 
     // Copy files, directories
-    else if(op == atoi(COPY_FILES) || op == atoi(COPY_DIRECTORY)){ 
+    else if(op == atoi(COPY_FILES) || op == atoi(COPY_DIRECTORY))
+    { 
         char path2[BUFFER_LENGTH];
         if(nonBlockingRecv(clientSocket, path2)){
             close(clientSocket);
             return NULL;
         }
 
-        copyHandler(path, path2, response, Msg);
+        if(sendConfirmation(clientSocket)){
+            printf("[-] Error sending confirmation for path2\n");
+        }
+        printf("Path 2: %s\n", path2);
+
+        copyHandler(path, path2, response, NS_Msg);
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the copyHandler response back to client.\n");
         }
     }
 
     else{
-        sprintf(Msg, "%d", ERROR_INVALID_REQUEST_NUMBER);
-        if(sendData(clientSocket, Msg)) {
+        sprintf(NS_Msg, "%d", ERROR_INVALID_REQUEST_NUMBER);
+        if(sendData(clientSocket, NS_Msg)) {
             printf("[-] Unable to send the Inavlid request no. back to client.\n");
         }
     }
@@ -583,7 +589,7 @@ void copyHandler(char* path1, char* path2, char* response, char* op)
     }
 
     // Connecting to the server
-    int serverSocket = connectToServer(server2->ip_address, server2->naming_server_port);
+    int serverSocket = connectToServer(server1->ip_address, server1->naming_server_port);
     if(serverSocket == -1){
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
         return;
@@ -599,12 +605,10 @@ void copyHandler(char* path1, char* path2, char* response, char* op)
     char sendArg[MAX_PATH_LENGTH], temp[10];
     strcpy(sendArg, server1->ip_address);
     strcat(sendArg, ":");
-    sprintf(temp, "%d", server1->client_server_port);
+    sprintf(temp, "%d", server2->client_server_port);
     strcat(sendArg, temp);
     strcat(sendArg, ":");
     strcat(sendArg, path1);
-    strcat(sendArg, ":");
-    strcat(sendArg, path2);
 
     // Sending the argument and receiving the confirmation for it from the storage server
     if(sendDataAndReceiveConfirmation(serverSocket, sendArg)){

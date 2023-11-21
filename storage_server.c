@@ -17,7 +17,7 @@ int nsSocketID; // Main socket for communication with the Name server
 int nsPort;     // PORT for communication with Name server (user-specified)
 char nsIP[16];  // Assuming IPv4
 
-char Msg[ERROR_BUFFER_LENGTH];
+char SS_Msg[ERROR_BUFFER_LENGTH];
 char paths_file[50] = ".paths_SS.txt";
 
 /* Close the sockets*/
