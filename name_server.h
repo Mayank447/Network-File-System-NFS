@@ -3,6 +3,17 @@
 
 #include "params.h"
 
+#define CACHE_SIZE 4
+
+typedef struct node_info* Node;
+typedef struct StorageServerInfo SSInfo;
+
+struct node_info{
+    Node Prev;
+    Node Next;
+    struct StorageServerInfo *SS; 
+};
+
 struct StorageServerInfo{
     int ss_id;
     int serverSocket;
@@ -31,5 +42,10 @@ void* handleStorageServer(void* argument);
 void* handleClientRequests(void*);
 void createDeletionHandler(char* path, char* response, char* type);
 void copyHandler(char* path1, char* path2, char* response, char* op);
+
+Node UPDATEtoFront(Node node);
+Node Search(char* key);
+Node ADD(SSInfo ssinfo);
+void printCache();
 
 #endif

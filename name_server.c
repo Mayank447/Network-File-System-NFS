@@ -41,6 +41,87 @@ void logger(char* text, char* IP, int PORT)
     }
 }
 
+///////////////////////////// LRU FUNCTIONS  /////////////////////////////
+Node HEAD;
+
+Node UPDATEtoFront(Node node){
+    if(node == HEAD){
+        return HEAD;
+    }
+    if(node->Next == NULL){
+        node->Prev->Next = NULL;
+    }else{
+        node->Prev->Next = node->Next;
+        node->Next->Prev = node->Prev;
+    }
+    node->Next = HEAD;
+    node->Prev = NULL;
+    HEAD->Prev = node;
+    HEAD = node;
+    return HEAD;
+}
+
+Node Search(char* key){
+    Node current = HEAD;
+    while(current != NULL){
+        for(int i = 0; i < MAX_NO_ACCESSIBLE_PATHS; i++) {
+            if(current->SS->accessible_paths[i] != NULL){
+                if(strcmp(current->SS->accessible_paths[i], key) == 0){
+                    UPDATEtoFront(current);
+                    return current;
+                }
+            }
+        }
+        current = current->Next;
+    }
+    return NULL;
+}
+
+Node ADD(SSInfo ssinfo) {
+    Node newNode = (Node)malloc(sizeof(struct node_info));
+    newNode->SS = &ssinfo;
+    newNode->Next = HEAD;
+    newNode->Prev = NULL;
+
+    if (HEAD != NULL) {
+        HEAD->Prev = newNode;
+    }
+
+    HEAD = newNode;
+
+    // Check and remove the least recently used element if cache size exceeds CACHE_SIZE
+    Node current = HEAD;
+    int count = 0;
+
+    while (current != NULL) {
+        count++;
+        current = current->Next;
+    }
+
+    if (count > CACHE_SIZE) {
+        current = HEAD;
+
+        while (current->Next != NULL) {
+            current = current->Next;
+        }
+
+        if (current->Prev != NULL) {
+            current->Prev->Next = NULL;
+        }
+
+        free(current);
+    }
+
+    return newNode;
+}
+
+void printCache(){
+    Node current = HEAD;
+    while(current != NULL){
+        printf("%d\n",current->SS->ss_id);
+        current = current->Next;
+    }
+}
 
 ///////////////////////////// STORAGE SERVER INITIALIZATION/////////////////////////////
 int ss_count = 0;                                                   // Count of no. of storage servers
@@ -633,27 +714,37 @@ void copyHandler(char* path1, char* path2, char* response, char* op)
 // Function to search for a path in storage servers */
 struct StorageServerInfo* searchStorageServer(char* file_path) 
 {
-    int found = 0;
-    pthread_mutex_lock(&storageServerHead_lock);
-    struct StorageServerInfo* temp = storageServerList;
-    pthread_mutex_unlock(&storageServerHead_lock);
-    
-    // Search accessible paths in the current storage server [Linear Search]
-    while (temp != NULL) {
-        int i = 0;
-        while (temp->accessible_paths[i][0] != '\0') 
-        { 
-            if (strcmp(file_path, temp->accessible_paths[i++]) == 0) {
-                found = 1;
-                break; 
-            }
-        }
-        if(found) break;
-        temp = temp->next;
+    Node lru_check = Search(file_path);
+    if(lru_check != NULL){
+        printf("%s\n",lru_check->SS->accessible_paths[0]);
+            return lru_check->SS;
     }
+    else{
+        int found = 0;
+        pthread_mutex_lock(&storageServerHead_lock);
+        struct StorageServerInfo* temp = storageServerList;
+        pthread_mutex_unlock(&storageServerHead_lock);
+        
+        // Search accessible paths in the current storage server [Linear Search]
+        while (temp != NULL) {
+            int i = 0;
+            while (temp->accessible_paths[i][0] != '\0') 
+            { 
+                if (strcmp(file_path, temp->accessible_paths[i++]) == 0) {
+                    found = 1;
+                    break; 
+                }
+            }
+            if(found) break;
+            temp = temp->next;
+        }
 
-    if (found) return temp; // Found the path in a storage server
-    else return NULL; // Path not found in any storage server
+        if (found) {
+            ADD(*temp);
+            return temp;
+        } // Found the path in a storage server
+        else return NULL; // Path not found in any storage server
+    }
 }
 
 
@@ -662,6 +753,7 @@ struct StorageServerInfo* searchStorageServer(char* file_path)
 //////////////////////////////// MAIN FUNCTION ////////////////////////
 int main(int argc, char* argv[])
 {
+    HEAD = NULL;
     // Signal handler for Ctrl+C and Ctrl+Z
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
