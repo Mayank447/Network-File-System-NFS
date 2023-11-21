@@ -432,7 +432,7 @@ int main()
         else if(op == 8){
             getFilePath(path1);
             if(copyFileClient(path1) != -1){
-                printf("[+] Directory deleted successfully\n");
+                printf("[+] File copied successfully\n");
             }  
         }
 
@@ -440,7 +440,7 @@ int main()
         else if(op == 9){
             getDirectoryPath(path1);
             if(performNSOperation(COPY_DIRECTORY, path1) != -1){
-                printf("[+] Directory deleted successfully\n");
+                printf("[+] Directory copied successfully\n");
             } 
         }
 
