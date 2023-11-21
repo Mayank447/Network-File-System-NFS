@@ -1,5 +1,6 @@
 #include "header_files.h"
 #include "client.h"
+#include "file.h"
 
 #define NAMESERVER_PORT 8080  // PORT for communication with nameserver (fixed)
 
@@ -33,6 +34,8 @@ void getDirectoryPath(char* path){
     printf("Enter the directory path: ");
     scanf("%s", path);
 }
+
+
 
 
 ///////////////////////// FETCHING AND CONNECTING TO STORAGE SERVER //////////////////
@@ -175,7 +178,7 @@ int readFile(char* path)
 
     // Receiving the file
     extractFileName(path, filename);
-    downloadFile(filename, serverSocket);
+    DownloadFile(serverSocket, path);
     close(serverSocket);
     return 0;
 }

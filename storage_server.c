@@ -369,7 +369,7 @@ void* handleClientRequest(void* argument)
 
 
     //READ FILE
-    if(request_no == 3 ) {
+    if(request_no == 3) {
         if(receive_ValidateFilePath(clientSocket, filepath, atoi(READ_FILE), &file, 1) == 0){
             uploadFile(filepath, clientSocket);
             decreaseReaderCount(&file);

@@ -1,6 +1,10 @@
 #ifndef FILE_H
 #define FILE_H
 
+#ifndef STORAGE_SERVER_H
+#include "storage_server.h"
+#endif
+
 // FILE STRUCT FUNCTIONS
 int checkFilePathExists(char* path);
 int validateFilePath(char* filepath, int operation_no, File* file);
@@ -18,5 +22,6 @@ void deleteFile(char *filename, char* response);
 void getFileMetaData(char* filepath, int clientSocketID);
 void copyFile(char* ss_path, char* response);
 void copyDirectory(char* ss_path, char* response);
+int DownloadFile(int serverSocket, char* filename);
 
 #endif

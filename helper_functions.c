@@ -90,13 +90,13 @@ void* receiveInfo(void* thread_args)
     struct ReceiveThreadArgs* args = (struct ReceiveThreadArgs*)thread_args;
     
     // Receiving the confirmation for storage server's side
+    pthread_testcancel();
+
     if(recv(args->serverSocket, args->buffer, BUFFER_LENGTH, 0) < 0){
         perror("[-] Error createFile(): Unable to receive info");
         args->threadResult = -1;
-        args->threadStatus = THREAD_FINISHED;
         return NULL;
     }
-    pthread_testcancel();
     args->threadResult = 0;
     args->threadStatus = THREAD_FINISHED;
     return NULL;
@@ -248,38 +248,35 @@ int receivePath(int socket, char* buffer)
 
 
 // Download a File - Receive data from a Socket and write to a File
-void downloadFile(char* filename, int socket)
+void downloadFile(char* filename, int serverSocket)
 {
+    char buffer[BUFFER_LENGTH];
+    if(nonBlockingRecv(serverSocket, buffer)) return;
+    
+    if(strcmp(buffer, VALID_STRING) != 0){
+        printError(buffer);
+        return;
+    }
+
+    if(sendConfirmation(serverSocket)) return;
+    printf("Here\n");
+
     FILE* file = fopen(filename, "w");
     if(!file){
         printf("Unable to open the FILE %s for writing\n", filename);
         return;
     }
 
-    // Waiting for FILE Opened message
-    char buffer[BUFFER_LENGTH];
-    if(nonBlockingRecv(socket, buffer)){
-        perror("[-] Error downloadFile() - Unable to receive the file open confirmation");
-        fclose(file);
-        return;
-    }
-
-    if(strcmp(buffer, VALID_STRING) != 0){
-        printError(buffer);
-        fclose(file);
-        return;
-    }
-
     // Receiving the FILE DATA
-    while(1)
-    {
-        if(nonBlockingRecv(socket, buffer)){
-            perror("[-] Error downloadFile(): Unable to receive the file open confirmation");
-            fclose(file);
-            return;
-        }
+    while(1){
+        int status = nonBlockingRecv(serverSocket, buffer);
+        printf("Buffer: %s\n", buffer);
 
         if(strcmp(buffer, "COMPLETE") == 0) break;
+        else if(status){
+            printf("Error downloadFile(): Unable to received file content");
+            fclose(file);
+        }
 
         if(fprintf(file, "%s", buffer) < 0){
             printf("Error downloadFile(): Unable to write to the file");
@@ -301,18 +298,13 @@ void uploadFile(char *filename, int clientSocket)
     if (!file) sprintf(error_message, "%d", ERROR_OPENING_FILE);
     else sprintf(error_message, VALID_STRING);
 
-    if(sendData(clientSocket, error_message)){
+    if(sendDataAndReceiveConfirmation(clientSocket, error_message)){
         perror("[-] Error UploadingFile(): Unable to send file opened message");
         fclose(file);
         return;
     }
 
     if(!file) fclose(file);
-
-    else if(receiveConfirmation(clientSocket)){
-        perror("[-] Error UploadingFile(): Receiving confirmation on sent message");
-        fclose(file);
-    }
 
     else {
         char buffer[BUFFER_LENGTH] = {'\0'};

@@ -202,7 +202,6 @@ void* handleStorageServer(void* argument)
 
     while(1 && not_received_count < NOT_RECEIVED_COUNT){
         bzero(buffer, BUFFER_LENGTH);
-        printf("Here\n");
         if(sendData(serverSocket, "DOWN")) continue;
         sleep(PERIODIC_HEART_BEAT);
 

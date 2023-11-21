@@ -264,6 +264,55 @@ void deleteFile(char *filename, char* response)
 }
 
 
+// Function to download a file
+int DownloadFile(int serverSocket, char* filename)
+{
+    char buffer[BUFFER_LENGTH], buffer2[BUFFER_LENGTH];
+    if(nonBlockingRecv(serverSocket, buffer)) return -1;
+    
+    if(strcmp(buffer, VALID_STRING) != 0){
+        printError(buffer);
+        return -1;
+    }
+
+    if(sendConfirmation(serverSocket)) return -1;
+
+    FILE* file = fopen(filename, "w");
+    if(!file){
+        printf("Unable to open the FILE %s for writing\n", filename);
+        return -1;
+    }
+
+    // Receiving the FILE DATA
+    while(1){
+        int status = nonBlockingRecv(serverSocket, buffer);
+        char* end_index;
+
+        if((end_index = strstr(buffer, "COMPLETE")) != NULL) {
+            bzero(buffer2, BUFFER_LENGTH);
+            strncpy(buffer2, buffer, (int)(end_index - buffer));
+            fprintf(file, "%s", buffer2);
+            break;
+        }
+
+        else if(status){
+            printf("Error downloadFile(): Unable to received file content");
+            fclose(file);
+            return -1;
+        }
+
+        else if(fprintf(file, "%s", buffer) < 0){
+            printf("Error downloadFile(): Unable to write to the file");
+            fclose(file);
+            return -1;
+        }
+    }
+    fclose(file);
+    printf("File %s downloaded successfully.\n", filename);
+    return 0;
+}
+
+
 void copyFile(char* ss_path, char* response){
 
 }
