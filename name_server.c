@@ -48,7 +48,7 @@ pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;          // Lock for 
 
 struct StorageServerInfo *storageServerList = NULL;                 // Head of linked list(reversed) of storage server
 pthread_mutex_t storageServerHead_lock = PTHREAD_MUTEX_INITIALIZER; // Lock for the above
-
+struct HashTable hashTable;
 
 // Function to add storage server (meta) information to the linked list
 struct StorageServerInfo* addStorageServerInfo(const char *ip, int ns_port, int cs_port)
@@ -174,6 +174,7 @@ void* handleStorageServer(void* argument)
             pthread_mutex_lock(&server->count_accessible_path_lock);
             if((server->count_accessible_paths >= 0 && server->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)){
                 strcpy(server->accessible_paths[server->count_accessible_paths++], token);
+                insertIntoHashTable(&hashTable, token, server);
             }
             pthread_mutex_unlock(&server->count_accessible_path_lock);
         }

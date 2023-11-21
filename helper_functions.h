@@ -36,4 +36,22 @@ int open_a_connection_port(int Port, int num_listener);
 int connectToServer(const char* IP_address, const int PORT);
 int sendDataAndReceiveConfirmation(int socket, char* data);
 
+
+//////////////// SEARCH OPTIMIZATION ///////////////
+#define HASH_TABLE_SIZE 300
+
+struct HashNode {
+    char path[MAX_LENGTH_OF_ACCESSIBLE_PATH];
+    struct StorageServerInfo* ss_info;
+    struct HashNode* next;
+};
+
+struct HashTable {
+    struct HashNode* table[HASH_TABLE_SIZE];
+};
+
+void insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info);
+struct StorageServerInfo* searchPathInHashTable(struct HashTable* hashTable, char* path);
+void deletePathFromHashTable(struct HashTable* hashTable, char* path);
+
 #endif

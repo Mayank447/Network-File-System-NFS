@@ -323,6 +323,7 @@ void DownloadFile(int serverSocket, char* filename)
             fclose(file);
             return;
         }
+        printf("%s\n", buffer);
     }
     fclose(file);
     printf("File %s downloaded successfully.\n", filename);
