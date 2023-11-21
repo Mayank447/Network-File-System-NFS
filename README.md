@@ -3,6 +3,15 @@
 <!-- ## Overview
 
 This Nameserver implementation manages communication between storage servers and clients. It handles storage server initialization, client requests, and storage server querying. -->
+
+## LRU Implementation
+Implemented LRU caching using doubly linked lists.
+Functions:
+- `Node UPDATEtoFront(Node node)`: Moves recently accessed storage server to the beginning of list
+- `Node Search(char* key)`: Searches the storage servers accessible paths  for identification
+- `Node ADD(SSInfo ssinfo)`: If not found in cache, add it to it.
+- `void printCache()`: helper function to print the then contents of the cache, useful in debugging :)
+
 ## Global Variables
 
 - `int clientSocket`: Socket for handling client requests.
