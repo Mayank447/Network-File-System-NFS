@@ -91,7 +91,7 @@ void collectAccessiblePaths()
         
         // Path corresponds to a directory
         else if(type == 1){
-            fprintf(file, "%s", path); // Write the path to the Path file 
+            fprintf(file, "%s\n", path); // Write the path to the Path file 
         }
 
         else{
