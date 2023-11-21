@@ -315,7 +315,6 @@ void DownloadFile(int serverSocket, char* filename)
         }
         
         if(strstr(buffer, "COMPLETE") != NULL) {
-            printf("Buffer2: %s\n", buffer);
             break;
         }
 

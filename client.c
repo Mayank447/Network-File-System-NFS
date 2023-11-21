@@ -246,6 +246,12 @@ int writeToFile(char* path, char* data)
             return -1;
         }
         sent_bytes += current_chunk_size; // Update the total sent bytes
+        
+        if(receiveConfirmation(serverSocket)){
+            perror("[-] Error receiving confirmation for file content");
+            close(serverSocket);
+            return -1;
+        }
     }
 
     if (sendData(serverSocket, "COMPLETE")){

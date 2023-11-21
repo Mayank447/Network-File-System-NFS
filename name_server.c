@@ -464,7 +464,6 @@ void* handleClientRequests(void* socket)
     // Read file, write to file, get File Permission
     else if(op == atoi(READ_FILE) || op == atoi(WRITE_FILE) || op == atoi(GET_FILE_PERMISSIONS))
     {        
-        printf("Inside\n");
         char response[BUFFER_LENGTH];
         returnSS_IP_PORT(path, response);
         if(sendData(clientSocket, response)) {
