@@ -14,8 +14,8 @@ struct storageServerArg{
 
 // Function to close server and client connection sockets
 void closeConnections(){ 
-    close(clientSocket);
-    close(storageServerSocket);
+    // close(clientSocket);
+    // close(storageServerSocket);
     cleanStorageServerInfoLinkedList();
 }
 
