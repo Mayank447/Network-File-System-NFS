@@ -284,7 +284,8 @@ void* handleNameServerThread(void* args)
     if(op == -1) {
         close(nsSocket);
         return NULL;
-    }  
+    }
+    printf("Operation number: %d\n", op);  
 
     // Receiving and sending confirmation for the first path
     char path[BUFFER_LENGTH], response[100];
@@ -292,6 +293,7 @@ void* handleNameServerThread(void* args)
         close(nsSocket);
         return NULL;
     }
+    printf("Path: %s\n", path);
 
     // Create File
     if(op == atoi(CREATE_FILE)){
@@ -419,7 +421,9 @@ void* handleClientRequest(void* argument)
     // COPY FILES
     else if(request_no == atoi(COPY_FILES)){
         if(receive_ValidateFilePath(clientSocket, filepath, COPY_FILES, 0) == 0){
-            DownloadFile(clientSocket, filepath);
+            char filename[BUFFER_LENGTH];
+            extractFileName(filepath, filename);
+            DownloadFile(clientSocket, filename);
         }
     }
 

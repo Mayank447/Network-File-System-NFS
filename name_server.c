@@ -565,8 +565,10 @@ void* handleClientRequests(void* socket)
         if(sendData(clientSocket, response)) {
             printf("[-] Unable to send the creationDeletionHandler response back to client.\n");
         }
-        sprintf(NS_Msg, "Creation/Deletion %s done", path);
-        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        else{
+            sprintf(NS_Msg, "Creation/Deletion %s done", path);
+            logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        }
     }
 
     // Read file, write to file, get File Permission
@@ -575,38 +577,47 @@ void* handleClientRequests(void* socket)
         char response[BUFFER_LENGTH];
         returnSS_IP_PORT(path, response);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the copyHandler response back to client.\n");
+            printf("[-] Unable to send the response back to client.\n");
+            logger("[-] Unable to send the response back to client.\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         }
-        sprintf(NS_Msg, "File operation(read, write, getFile Permission) on %s done", path);
-        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        else{
+            sprintf(NS_Msg, "File operation(read, write, getFile Permission) on %s done", path);
+            logger(NS_Msg, inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+        }
     }
 
     // Copy files, directories
     else if(op == atoi(COPY_FILES) || op == atoi(COPY_DIRECTORY))
     { 
-        char path2[BUFFER_LENGTH];
-        if(nonBlockingRecv(clientSocket, path2)){
+        char path1[BUFFER_LENGTH], path2[BUFFER_LENGTH];
+        if (sscanf(path, "%[^:]:%s", path1, path2) != 2){
+            printf("[-] Error parsing Copy File info: %s\n", path);
             close(clientSocket);
             return NULL;
         }
+        printf("%s %s\n", path1, path2);
 
-        printf("Path2: %s\n", path2);
-
-        copyHandler(path, path2, response, NS_Msg);
+        copyHandler(path1, path2, response, NS_Msg);
         if(sendData(clientSocket, response)) {
-            printf("[-] Unable to send the copyHandler response back to client.\n");
+            sprintf(NS_Msg, "[-] Unable to send the copyHandler response back to client.\n");
+            printf("%s", NS_Msg);
+            logger(NS_Msg, inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
         }
-        sprintf(NS_Msg, "Copying of %s to %s done", path, path2);
-        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        else{
+            sprintf(NS_Msg, "Copying of %s to %s done", path, path2);
+            logger(NS_Msg, inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+        }
     }
 
     else{
         sprintf(NS_Msg, "%d", ERROR_INVALID_REQUEST_NUMBER);
         if(sendData(clientSocket, NS_Msg)) {
-            printf("[-] Unable to send the Inavlid request no. back to client.\n");
+            printf("[-] Unable to send the Inavlid request no. response back to client.\n");
         }
-        sprintf(NS_Msg, "Invalid operation number %d", op);
-        logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        else{
+            sprintf(NS_Msg, "Invalid operation number %d", op);
+            logger(NS_Msg,inet_ntoa(clientAddress.sin_addr),ntohs(clientAddress.sin_port));
+        }
     }
 
 
@@ -622,7 +633,7 @@ void createDeletionHandler(char* path, char* response, char* type)
     
     // If the command is Create File/Directory
     if(strcmp(type, CREATE_FILE)==0 || strcmp(type, CREATE_DIRECTORY)==0)
-        server = storageServerList;
+        server = minAccessiblePathSS();
 
     // If the command is Delete File/Directory
     if(strcmp(type, DELETE_FILE)==0 || strcmp(type, DELETE_DIRECTORY)==0){
@@ -690,8 +701,9 @@ void createDeletionHandler(char* path, char* response, char* type)
 void copyHandler(char* path1, char* path2, char* response, char* op)
 {
     struct StorageServerInfo *server1 = NULL, *server2 = NULL;
-    server1 =  searchPathInHashTable(&hashTable, path1);
+    server1 = searchPathInHashTable(&hashTable, path1);
     server2 = searchPathInHashTable(&hashTable, path2);
+    printf("Inside\n");
 
     // If one of the path doesn't exist exit
     if(!server1 || !server2){

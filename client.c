@@ -330,22 +330,20 @@ void parseMetadata(char *data)
 }
 
 
-int copyFileClient(char* path)
+int copyFileClient(char* path1, char* path2)
 {
     int nsSocket;
+    char path[MAX_PATH_LENGTH];
+    strcpy(path, path1);
+    strcat(path, ":");
+    strcat(path, path2);
+
     if((nsSocket = sendOperation_PathToNameServer(COPY_FILES, path)) == -1){
         printf("[-] Error in sending first path for file copying\n");
         return -1;
     }
 
-    char path2[MAX_PATH_LENGTH];
-    getFilePath(path2);
-    if(sendData(nsSocket, path2)){
-        printf("[-] Error in sending second path\n");
-        return -1;
-    }
-
-    // Receiving the file permission from the server
+    // Receiving the outcome from the server
     char buffer[BUFFER_LENGTH];
     if(nonBlockingRecv(nsSocket, buffer)){
         close(nsSocket);
@@ -431,7 +429,8 @@ int main()
         // Copy File
         else if(op == 8){
             getFilePath(path1);
-            if(copyFileClient(path1) != -1){
+            getFilePath(path2);
+            if(copyFileClient(path1, path2) != -1){
                 printf("[+] File copied successfully\n");
             }  
         }

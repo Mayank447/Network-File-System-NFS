@@ -48,7 +48,7 @@ int validateFilePath(char* filepath, char* operation_no)
         // Incrementing the reader count
         pthread_mutex_lock(&ptr->get_reader_count_lock);
         ptr->reader_count++;
-        printf("Count: %d\n", ptr->reader_count);
+        // printf("Count: %d\n", ptr->reader_count);
         pthread_mutex_unlock(&ptr->get_reader_count_lock);
 
         pthread_mutex_unlock(&ptr->read_write_lock);
@@ -87,8 +87,8 @@ void decreaseReaderCount(char* path)
             pthread_mutex_lock(&file->read_write_lock);
             pthread_mutex_lock(&file->get_reader_count_lock);
             
-            printf("Filename: %s", file->filepath);
-            printf("Reader_count: %d", file->reader_count);
+            // printf("Filename: %s\n", file->filepath);
+            // printf("Reader_count: %d\n", file->reader_count);
             if(file->read_write != 1 && --file->reader_count == 0){
                 file->read_write = -1;
             }
@@ -326,7 +326,7 @@ void DownloadFile(int serverSocket, char* filename)
             fclose(file);
             return;
         }
-        printf("%s\n", buffer);
+        // printf("%s\n", buffer);
     }
     fclose(file);
     printf("File %s downloaded successfully.\n", filename);
