@@ -387,7 +387,7 @@ int sendDataAndReceiveConfirmation(int socket, char* data){
 
 
 //////////////////// SEARCH OPTIMIZATION //////////////////////////
-void insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info) {
+int insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info) {
     int hashValue = 0;
     for (int i = 0; path[i] != '\0'; ++i) {
         hashValue = (hashValue * 31 + path[i]) % HASH_TABLE_SIZE;
@@ -396,7 +396,7 @@ void insertIntoHashTable(struct HashTable* hashTable, char* path, struct Storage
     struct HashNode* newNode = (struct HashNode*)malloc(sizeof(struct HashNode));
     if (newNode == NULL) {
         // Handle memory allocation failure
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     strncpy(newNode->path, path, MAX_LENGTH_OF_ACCESSIBLE_PATH);
@@ -404,8 +404,11 @@ void insertIntoHashTable(struct HashTable* hashTable, char* path, struct Storage
     newNode->ss_info = ss_info;
     newNode->next = hashTable->table[hashValue];
     hashTable->table[hashValue] = newNode;
+    return 0;
 }
-void deletePathFromHashTable(struct HashTable* hashTable, char* path) {
+
+
+int deletePathFromHashTable(struct HashTable* hashTable, char* path) {
     int hashValue = 0;
     for (int i = 0; path[i] != '\0'; ++i) {
         hashValue = (hashValue * 31 + path[i]) % HASH_TABLE_SIZE;
@@ -424,14 +427,14 @@ void deletePathFromHashTable(struct HashTable* hashTable, char* path) {
 
             // Free the memory allocated for the node
             free(currentNode);
-            return;
+            return 0;
         }
         prevNode = currentNode;
         currentNode = currentNode->next;
     }
 
     // Path not found
-    printf("Path not found in the hash table\n");
+    return -1;
 }
 
 struct StorageServerInfo* searchPathInHashTable(struct HashTable* hashTable, char* path) {

@@ -123,6 +123,7 @@ void printCache(){
     }
 }
 
+
 ///////////////////////////// STORAGE SERVER INITIALIZATION/////////////////////////////
 int ss_count = 0;                                                   // Count of no. of storage servers
 pthread_mutex_t ss_count_lock = PTHREAD_MUTEX_INITIALIZER;          // Lock for the above
@@ -290,16 +291,17 @@ void* handleStorageServer(void* argument)
     server->running = 1;
     bzero(buffer, BUFFER_LENGTH);
 
+
     //////////// HEART BEAT //////////////
     while(not_received_count < NOT_RECEIVED_COUNT)
     {
         if(nonBlockingRecvPeriodic(serverSocket, buffer) == -1) {
             not_received_count++;
-            printf("Storage Server pulsePulse count: %d\n", not_received_count);
-            printf("[-] Failed to receive Pulse from the storage server %d\n", server->ss_id);
+            sprintf(NS_Msg, "[-] Failed to receive Pulse from the storage server %d\n", server->ss_id);
+            logger(NS_Msg, ip_address, naming_server_port);
         }
         else{
-            printf("Pulse %d: %s\n", server->ss_id, buffer);
+            // printf("Pulse %d: %s\n", server->ss_id, buffer);
             if(strcmp(buffer, "SS") != 0) not_received_count++;
             else not_received_count = 0;
         }
@@ -367,10 +369,10 @@ void parseStorageServerInfo(const char *data, char *ip_address, int *ns_port, in
 // Function to add an accessible path
 int addAccessiblePath(struct StorageServerInfo* ptr, char* path)
 {
-    pthread_mutex_lock(&storageServerHead_lock);
-    insertIntoHashTable(&hashTable, path, ptr);
-    pthread_mutex_unlock(&storageServerHead_lock);
-    
+    int ret = insertIntoHashTable(&hashTable, path, ptr);
+    if(ret == 0) ptr->count_accessible_paths++;
+    return ret;
+
     // while(ptr != NULL){
     //     pthread_mutex_lock(&ptr->count_accessible_path_lock);
     //     if(ptr->ss_id == ss_id && ptr->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)
@@ -389,17 +391,16 @@ int addAccessiblePath(struct StorageServerInfo* ptr, char* path)
     //     pthread_mutex_unlock(&ptr->count_accessible_path_lock);
     //     ptr = ptr->next;
     // } 
-    return 0;
 }
 
 
 // Function to delete an accessible path
-int deleteAccessiblePath(int ss_id, char* path)
+int deleteAccessiblePath(struct StorageServerInfo* ptr, char* path)
 {
-    pthread_mutex_lock(&storageServerHead_lock);
-    deletePathFromHashTable(&hashTable, path);
-    pthread_mutex_unlock(&storageServerHead_lock);
-    
+    int ret = deletePathFromHashTable(&hashTable, path);
+    if(ret == 0) ptr->count_accessible_paths--;
+    return ret;
+
     // while(ptr != NULL){
     //     pthread_mutex_lock(&ptr->count_accessible_path_lock);
     //     if(ptr->ss_id == ss_id && ptr->count_accessible_paths < MAX_NO_ACCESSIBLE_PATHS)
@@ -418,7 +419,6 @@ int deleteAccessiblePath(int ss_id, char* path)
     //     pthread_mutex_unlock(&ptr->count_accessible_path_lock);
     //     ptr = ptr->next;
     // } 
-    return 0;
 }
 
 
@@ -464,6 +464,7 @@ void cleanStorageServerInfoLinkedList()
 
     pthread_mutex_unlock(&storageServerHead_lock);
 }
+
 
 // Function to return the Storage server IP address and PORT given the filepath/directory
 void returnSS_IP_PORT(char* path, char* response)
@@ -618,20 +619,15 @@ void* handleClientRequests(void* socket)
 void createDeletionHandler(char* path, char* response, char* type)
 {
     struct StorageServerInfo* server;
-
-    char substitute[MAX_PATH_LENGTH];
+    
     // If the command is Create File/Directory
-    if(strcmp(type, CREATE_FILE)==0 || strcmp(type, CREATE_DIRECTORY)==0){
-        strcpy(substitute,path);
-        printf("%s\n",substitute);
-        removeLastSlash(substitute);
-        printf("%s\n",substitute);
-        server = searchPathInHashTable(&hashTable, substitute);
-    }
+    if(strcmp(type, CREATE_FILE)==0 || strcmp(type, CREATE_DIRECTORY)==0)
+        server = storageServerList;
 
     // If the command is Delete File/Directory
-    if(strcmp(type, DELETE_FILE)==0 || strcmp(type, DELETE_DIRECTORY)==0)
-        server = searchPathInHashTable(&hashTable, substitute);
+    if(strcmp(type, DELETE_FILE)==0 || strcmp(type, DELETE_DIRECTORY)==0){
+        server = searchPathInHashTable(&hashTable, path);
+    }
 
     if(server == NULL) {
         sprintf(response, "%d", ERROR_PATH_DOES_NOT_EXIST);
@@ -683,7 +679,7 @@ void createDeletionHandler(char* path, char* response, char* type)
     else if(strcmp(response, VALID_STRING)==0 &&
         (strcmp(type, DELETE_FILE)==0 || (strcmp(type, DELETE_DIRECTORY)==0)))
     {
-        deleteAccessiblePath(server->ss_id, path);
+        deleteAccessiblePath(server, path);
     }
 
     close(serverSocket);
@@ -694,8 +690,8 @@ void createDeletionHandler(char* path, char* response, char* type)
 void copyHandler(char* path1, char* path2, char* response, char* op)
 {
     struct StorageServerInfo *server1 = NULL, *server2 = NULL;
-        server1 =  searchPathInHashTable(&hashTable, path1);
-        server2 = searchPathInHashTable(&hashTable, path2);
+    server1 =  searchPathInHashTable(&hashTable, path1);
+    server2 = searchPathInHashTable(&hashTable, path2);
 
     // If one of the path doesn't exist exit
     if(!server1 || !server2){

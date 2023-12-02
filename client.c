@@ -178,7 +178,7 @@ int readFile(char* path)
 
     // Receiving the file
     extractFileName(path, filename);
-    DownloadFile(serverSocket, path);
+    DownloadFile(serverSocket, filename);
     close(serverSocket);
     return 0;
 }

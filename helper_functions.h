@@ -50,9 +50,9 @@ struct HashTable {
     struct HashNode* table[HASH_TABLE_SIZE];
 };
 
-void insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info);
+int insertIntoHashTable(struct HashTable* hashTable, char* path, struct StorageServerInfo* ss_info);
 struct StorageServerInfo* searchPathInHashTable(struct HashTable* hashTable, char* path);
-void deletePathFromHashTable(struct HashTable* hashTable, char* path);
+int deletePathFromHashTable(struct HashTable* hashTable, char* path);
 
 void removeLastSlash(char *str);
 #endif
