@@ -40,7 +40,7 @@
 #define RECEIVE_THREAD_RUNNING_TIME 5
 
 // Ensuring the Storage Server is running by sending a pulse
-#define PERIODIC_HEART_BEAT 2
-#define NOT_RECEIVED_COUNT 3
+#define PERIODIC_HEART_BEAT 5
+#define NOT_RECEIVED_COUNT 6
 
 #endif

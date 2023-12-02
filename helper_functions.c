@@ -93,7 +93,7 @@ void* receiveInfo(void* thread_args)
     pthread_testcancel();
 
     if(recv(args->serverSocket, args->buffer, BUFFER_LENGTH, 0) < 0){
-        perror("[-] Error createFile(): Unable to receive info");
+        perror("[-] Error: Unable to receive info");
         args->threadResult = -1;
         return NULL;
     }
@@ -154,13 +154,43 @@ int nonBlockingRecvPeriodic(int serverSocket, char* buffer)
     }
     
     pthread_cancel(receiveThread);
-    printf("[-] Failed to receive sent info\n");
     return -1;
 }
 
 
 // Thread to send response
-int sendData(int socket, char* response){
+int sendData(int socket, char* response)
+{
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        perror("[-] Error creating child process");
+        sprintf(response, "%d", STORAGE_SERVER_ERROR);
+        return -1;
+    }
+
+    else if (childPid == 0){
+        if(send(socket, response, strlen(response), 0) < 0){
+            perror("[-] sendData(): Error sending specified data");
+            exit(EXIT_FAILURE);
+        }
+        exit(EXIT_SUCCESS);
+    }
+    
+    // This is the parent process
+    else {
+        int status;
+        waitpid(childPid, &status, 0);
+
+        if (WIFEXITED(status)) 
+            return 0;
+        else
+            return -1;
+    }
+    return -1;
+}
+
+// Thread to send response for time
+int sendDataPeriodic(int socket, char* response){
     if(send(socket, response, strlen(response), 0) < 0){
         perror("[-] sendConfirmation(): Error sending confirmation");
         return -1;

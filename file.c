@@ -193,7 +193,10 @@ void openWriteLock(char* path){
 int checkFileType(char* path)
 { 
     struct stat path_stat;
-    stat(path, &path_stat);
+    if(stat(path, &path_stat)){
+        perror("[-] Error checkFileType(): Unable to get file stat");
+        return -1;
+    }
 
     if(S_ISREG(path_stat.st_mode)) return 0;
     else if(S_ISDIR(path_stat.st_mode)) return 1;

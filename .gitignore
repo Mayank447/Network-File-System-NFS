@@ -8,6 +8,8 @@ temp*
 client
 name_server
 storage_server
+root_directory/
+course-project-dir/
 
 1/
 2/

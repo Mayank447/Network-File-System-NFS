@@ -39,20 +39,31 @@ void handle_signal(int signum){
 void collectAccessiblePaths()
 {
     char path[PATH_BUFFER_SIZE];
-    char *filename = ".paths_SS*.txt";
+    char *filename = ".paths_SS.txt";
 
     // Check if paths file exists
-    if (fileExists(filename) )
+    if (fileExists(filename))
     {    
+        printf("[+] Reading paths from %s\n", filename);
         FILE *file = fopen(filename, "r");
         if(file){
             while (fgets(path, sizeof(path), file) != NULL)
             {
-                int index = strchr(path, '\n') - path;
-                path[index] = '\0';
+                char* index = strchr(path, '\n');
+                if(index) *index = '\0';
         
-                if(checkFileType(path) == 0) 
-                    addFile(path, 1);
+                int type = checkFileType(path);
+                
+                // Invalid path
+                if(type == -1) 
+                    printf("Invalid path\n");
+
+                // Path corresponds to a File
+                else if(type == 0) {
+                    if(addFile(path, 1) != 0){
+                       printf("[-] Error adding file to File struct\n");
+                    }
+                }
             }
             fclose(file);
             return;
@@ -72,9 +83,10 @@ void collectAccessiblePaths()
         fgets(path, sizeof(path), stdin);
         if (strcmp(path, "exit\n") == 0) 
             break;
+
         else{
-            int index = strchr(path, '\n') - path;
-            path[index] = '\0';
+            char* index = strchr(path, '\n');
+            if(index) *index = '\0';
         }
         
         int type = checkFileType(path);
@@ -199,21 +211,34 @@ void* NameServerPulseHandler()
     }
 
     char buffer[BUFFER_LENGTH];
-    int not_received_count = 0;
-
-    while(1 && not_received_count < NOT_RECEIVED_COUNT)
-    {
-        bzero(buffer, BUFFER_LENGTH);
-        if(sendData(nsSocket, "DOWN")){;}
-        sleep(PERIODIC_HEART_BEAT);
-
-        if(nonBlockingRecvPeriodic(nsSocket, buffer)) {
-            not_received_count++;
-            continue;
-        }
-        not_received_count = 0;
-        if(strcmp(buffer, "UP") != 0) break;
+    if(sendData(nsSocket, "SS") == -1){
+        printf("[-] Connection with Nameserver is broken\n");
+        close(nsSocket);
+        return NULL;
     }
+
+    int not_received_count = 0;
+    while(not_received_count < NOT_RECEIVED_COUNT)
+    {
+        if(nonBlockingRecvPeriodic(nsSocket, buffer) == -1) {
+            not_received_count++;
+            printf("[-] Failed to receive Pulse from the Name server\n");
+        }
+        else{
+            if(strcmp(buffer, "NS") != 0) not_received_count++;
+            else not_received_count = 0;
+        }
+
+        clock_t start_time = clock();
+        if(sendData(nsSocket, "SS")) {
+            not_received_count++;
+            printf("[-] Failed to send Pulse to the Name server\n");
+        }
+
+        bzero(buffer, BUFFER_LENGTH);
+        sleep(PERIODIC_HEART_BEAT - ((double)(clock() - start_time)/ CLOCKS_PER_SEC));
+    }
+
     printf("[-] Connection with Nameserver is broken\n");
     close(nsSocket);
     return NULL;
@@ -456,13 +481,7 @@ int main(int argc, char *argv[])
     int initialiazed = sendInfoToNamingServer(nsIP, nsPort, clientPort);
     if (initialiazed == -1) {
         printf("[-] Failed to send information to the Naming Server.\n");
-    }
-    else{
-        char filename[50];
-        sprintf(filename, ".paths_SS%d.txt", ss_id);
-        if (rename(paths_file, filename) != 0){
-            perror("[-] Error renaming the Paths file");
-        }
+        return 0;
     }
 
     // Create a thread to communicate with the nameserver

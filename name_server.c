@@ -260,6 +260,13 @@ void* handleStorageServer(void* argument)
             pthread_mutex_unlock(&server->count_accessible_path_lock);
         }
 
+        // Failed processing the storage server information
+        else{
+            printf("[-] Error in parsing the storage server information.\n");
+            close(connectedServerSocketID);
+            return NULL;
+        }
+
         token = strtok(NULL, ":");
     }
     close(connectedServerSocketID);
@@ -281,23 +288,36 @@ void* handleStorageServer(void* argument)
     // Check is the storage server is still up and running by sending a pulse every second
     int not_received_count = 0;
     server->running = 1;
+    bzero(buffer, BUFFER_LENGTH);
 
-    while(1 && not_received_count < NOT_RECEIVED_COUNT){
-        // Receiving the operation code from Nameserver
-        bzero(buffer, BUFFER_LENGTH);
-        if(nonBlockingRecvPeriodic(serverSocket, buffer)) {
+    //////////// HEART BEAT //////////////
+    while(not_received_count < NOT_RECEIVED_COUNT)
+    {
+        if(nonBlockingRecvPeriodic(serverSocket, buffer) == -1) {
             not_received_count++;
-            continue;
+            printf("Storage Server pulsePulse count: %d\n", not_received_count);
+            printf("[-] Failed to receive Pulse from the storage server %d\n", server->ss_id);
         }
-        not_received_count = 0;
+        else{
+            printf("Pulse %d: %s\n", server->ss_id, buffer);
+            if(strcmp(buffer, "SS") != 0) not_received_count++;
+            else not_received_count = 0;
+        }
 
-        if(strcmp(buffer, "DOWN") != 0) break;
-        if(sendData(serverSocket, "UP")){;}
-        sleep(PERIODIC_HEART_BEAT);
+        clock_t start_time = clock();
+        if(sendData(serverSocket, "NS")) {
+            not_received_count++;
+            printf("[-] Failed to send Pulse to the Storage server %d\n", server->ss_id);
+        }
+        bzero(buffer, BUFFER_LENGTH);
+        sleep(PERIODIC_HEART_BEAT - ((double)(clock() - start_time)/ CLOCKS_PER_SEC));
     }
-    server->running = 0;
+
     sprintf(NS_Msg, "Storage server %d is down\n", serverID);
     logger(NS_Msg, ip_address, naming_server_port);
+    printf("%s", NS_Msg);
+
+    server->running = 0;
     close(serverSocket);
     return NULL;
 }
